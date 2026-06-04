@@ -26,7 +26,7 @@ class DashboardController extends Controller
         $wallets = Wallet::with('currency')
             ->where('user_id', $user->id)
             ->get()
-            ->map(function ($wallet) use ($currencies) {
+            ->map(function ($wallet) {
                 $currencyCode = $wallet->currency?->code ?? 'USD';
                 $currencySymbol = $wallet->currency?->symbol ?? '$';
                 $balance = $wallet->balance ?? 0;
@@ -51,18 +51,9 @@ class DashboardController extends Controller
         
         // Calculate total balance in USD
         $totalBalanceInUSD = 0;
-        $usdCurrency = $currencies['USD'] ?? null;
-        
         foreach ($wallets as $wallet) {
             if ($wallet['currency_code'] === 'USD') {
                 $totalBalanceInUSD += $wallet['balance'];
-            } elseif ($usdCurrency) {
-                // Simple exchange rate for non-USD currencies
-                $fromCurrency = Currency::where('code', $wallet['currency_code'])->first();
-                if ($fromCurrency) {
-                    $rate = ExchangeRate::getRate($fromCurrency, $usdCurrency);
-                    $totalBalanceInUSD += $wallet['balance'] * ($rate ?? 1);
-                }
             }
         }
         
@@ -71,27 +62,83 @@ class DashboardController extends Controller
             ->where('user_id', $user->id)
             ->where('status', 'completed')
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit(10)
             ->get()
             ->map(function ($transaction) {
+                // Initialize variables
                 $type = 'sent';
                 $amount = 0;
                 $currency = null;
-                $isIncoming = false;
+                $displayName = '';
                 
-                if ($transaction->destination_wallet_id && $transaction->destination_wallet) {
+                // HANDLE DEPOSITS FIRST (most common case for new users)
+                if ($transaction->type === 'deposit') {
+                    // Deposits are always INCOMING money
                     $type = 'received';
-                    $currency = $transaction->destination_wallet->currency;
+                    $currency = $transaction->destinationWallet->currency ?? null;
                     $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
-                    $isIncoming = true;
-                } elseif ($transaction->source_wallet_id && $transaction->source_wallet) {
+                    $displayName = 'Deposit';
+                }
+                // Handle transfers between wallets
+                elseif ($transaction->type === 'transfer') {
+                    // Check if user is the sender or receiver
+                    if ($transaction->source_wallet_id && $transaction->sourceWallet) {
+                        // User is the sender
+                        $type = 'sent';
+                        $currency = $transaction->sourceWallet->currency ?? null;
+                        $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                        $displayName = 'Transfer Sent';
+                    } elseif ($transaction->destination_wallet_id && $transaction->destinationWallet) {
+                        // User is the receiver
+                        $type = 'received';
+                        $currency = $transaction->destinationWallet->currency ?? null;
+                        $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                        $displayName = 'Transfer Received';
+                    }
+                }
+                // Handle withdrawals (money leaving the platform)
+                elseif ($transaction->type === 'withdrawal') {
                     $type = 'sent';
-                    $currency = $transaction->source_wallet->currency;
+                    $currency = $transaction->sourceWallet->currency ?? null;
                     $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
-                    $isIncoming = false;
+                    $displayName = 'Withdrawal';
+                }
+                // Handle fees
+                elseif ($transaction->type === 'fee') {
+                    $type = 'sent';
+                    $currency = $transaction->sourceWallet->currency ?? null;
+                    $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                    $displayName = 'Fee';
+                }
+                // Handle refunds
+                elseif ($transaction->type === 'refund') {
+                    $type = 'received';
+                    $currency = $transaction->destinationWallet->currency ?? null;
+                    $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                    $displayName = 'Refund';
+                }
+                // Default fallback
+                else {
+                    // Try to determine based on wallet presence
+                    if ($transaction->destination_wallet_id && $transaction->destinationWallet) {
+                        $type = 'received';
+                        $currency = $transaction->destinationWallet->currency ?? null;
+                        $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                        $displayName = ucfirst($transaction->type);
+                    } elseif ($transaction->source_wallet_id && $transaction->sourceWallet) {
+                        $type = 'sent';
+                        $currency = $transaction->sourceWallet->currency ?? null;
+                        $amount = MoneyHelper::fromSmallestUnit($transaction->amount, $currency?->code ?? 'USD');
+                        $displayName = ucfirst($transaction->type);
+                    }
                 }
                 
-                // Format date nicely
+                // Use custom description if available
+                if ($transaction->description && $transaction->type !== 'deposit') {
+                    $displayName = $transaction->description;
+                }
+                
+                // Format date for display
                 $date = $transaction->created_at;
                 $now = now();
                 $diffInDays = $date->diffInDays($now);
@@ -101,28 +148,26 @@ class DashboardController extends Controller
                 } elseif ($diffInDays === 1) {
                     $dateDisplay = 'Yesterday';
                 } elseif ($diffInDays < 7) {
-                    $dateDisplay = $date->format('l');
+                    $dateDisplay = $date->format('l'); // Monday, Tuesday, etc.
                 } else {
                     $dateDisplay = $date->format('M j, Y');
                 }
                 
-                // Transaction display name
-                $displayName = $transaction->description;
-                if (!$displayName) {
-                    if ($transaction->type === 'deposit') {
-                        $displayName = 'Deposit';
-                    } elseif ($transaction->type === 'transfer') {
-                        $displayName = $isIncoming ? 'Transfer Received' : 'Transfer Sent';
-                    } else {
-                        $displayName = ucfirst($transaction->type);
-                    }
-                }
-                
+                // Format the amount with sign
                 $currencySymbol = $currency?->symbol ?? '$';
-                // FIXED: Use 'decimal_places' not 'decimal_digits'
                 $decimalPlaces = $currency?->decimal_places ?? 2;
                 $sign = $type === 'received' ? '+' : '-';
                 $amountDisplay = $sign . $currencySymbol . number_format($amount, $decimalPlaces);
+                
+                // Debug log (remove after confirming it works)
+                \Log::info('Transaction processed', [
+                    'id' => $transaction->id,
+                    'type' => $transaction->type,
+                    'detected_type' => $type,
+                    'sign' => $sign,
+                    'amount' => $amount,
+                    'amount_display' => $amountDisplay,
+                ]);
                 
                 return [
                     'id' => $transaction->id,
@@ -133,7 +178,8 @@ class DashboardController extends Controller
                     'currency_symbol' => $currencySymbol,
                     'name' => $displayName,
                     'description' => $transaction->description,
-                    'date' => $dateDisplay,
+                    'date_display' => $dateDisplay,
+                    'date_raw' => $date->toISOString(),
                     'status' => $transaction->status,
                 ];
             });

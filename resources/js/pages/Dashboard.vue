@@ -20,13 +20,14 @@ import {
 import { router } from '@inertiajs/vue3';
 
 // ==================== PROPS ====================
-// Receive real data from Laravel controller
+// Updated to match backend response
 const props = defineProps<{
     wallets: Array<{
         id: number;
         currency_code: string;
         currency_symbol: string;
         balance: number;
+        formatted_balance?: string;
         currency_flag: string;
         is_default: boolean;
     }>;
@@ -34,16 +35,18 @@ const props = defineProps<{
         id: number;
         type: string;
         amount: number;
+        amount_display: string;
         currency_code: string;
         currency_symbol: string;
-        description: string;
-        created_at: string;
+        name: string;
+        date_display: string;
         status: string;
     }>;
     totalBalance: number;
     mainCurrency: {
         code: string;
         symbol: string;
+        formatted_balance?: string;
     };
 }>();
 
@@ -64,6 +67,7 @@ interface CurrencyBalance {
   code: string;
   symbol: string;
   amount: number;
+  formattedAmount: string;
   flag: string;
   isMain: boolean;
 }
@@ -71,9 +75,7 @@ interface CurrencyBalance {
 interface Transaction {
   id: number;
   name: string;
-  amount: number;
-  currency: string;
-  symbol: string;
+  amountDisplay: string;
   type: 'sent' | 'received';
   date: string;
 }
@@ -98,7 +100,7 @@ const currencies = ref<CurrencyBalance[]>([]);
 // Transform transactions from props to component format
 const recentTransactions = ref<Transaction[]>([]);
 
-// Deposit options (can also come from backend or stay static)
+// Deposit options
 const depositOptions = ref<DepositOption[]>([
   { id: 'bank', name: 'Bank Transfer', icon: Landmark, fee: 'Free', time: '1-3 days' },
   { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, fee: '2.9%', time: 'Instant' },
@@ -113,7 +115,8 @@ const totalBalanceDisplay = computed(() => {
 const mainCurrency = computed(() => {
   return {
     symbol: props.mainCurrency?.symbol || '$',
-    code: props.mainCurrency?.code || 'USD'
+    code: props.mainCurrency?.code || 'USD',
+    formattedBalance: props.mainCurrency?.formatted_balance || `$${props.totalBalance.toFixed(2)}`
   };
 });
 
@@ -139,18 +142,6 @@ const getTransactionColor = (type: string) => {
 
 const getTransactionIcon = (type: string) => {
   return type === 'received' ? ArrowDownRight : ArrowUpRight;
-};
-
-const getTransactionDisplayName = (transaction: Transaction) => {
-  // If it's a deposit
-  if (transaction.name === 'Deposit') {
-    return 'Deposit';
-  }
-  // If it's a transfer
-  if (transaction.name.startsWith('Transfer')) {
-    return transaction.name;
-  }
-  return transaction.name;
 };
 
 const addNewCurrency = () => {
@@ -191,22 +182,6 @@ const handleResize = () => {
   checkScrollButtons();
 };
 
-// Format date to relative time (Today, Yesterday, or date)
-const formatRelativeDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  if (date.toDateString() === today.toDateString()) {
-    return 'Today';
-  } else if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday';
-  } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-};
-
 // Process real data on mount
 onMounted(() => {
   // Transform wallets data
@@ -215,19 +190,18 @@ onMounted(() => {
     code: wallet.currency_code,
     symbol: wallet.currency_symbol,
     amount: wallet.balance,
+    formattedAmount: wallet.formatted_balance || `${wallet.currency_symbol} ${wallet.balance.toFixed(2)}`,
     flag: wallet.currency_flag,
     isMain: wallet.is_default,
   }));
   
-  // Transform transactions data
+  // Transform transactions data - use pre-formatted values from backend
   recentTransactions.value = props.recentTransactions.map(tx => ({
     id: tx.id,
-    name: tx.description || (tx.type === 'deposit' ? 'Deposit' : 'Transfer'),
-    amount: tx.amount,
-    currency: tx.currency_code,
-    symbol: tx.currency_symbol,
-    type: tx.type === 'deposit' || tx.type === 'transfer_received' ? 'received' : 'sent',
-    date: formatRelativeDate(tx.created_at),
+    name: tx.name,
+    amountDisplay: tx.amount_display,
+    type: tx.type as 'sent' | 'received',
+    date: tx.date_display,
   }));
   
   // Set up scroll listeners
@@ -276,7 +250,7 @@ onUnmounted(() => {
                 <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">Total balance</p>
                 <div class="flex items-center gap-3">
                     <h1 class="truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-                        {{ showBalance ? formatAmount(Number(totalBalanceDisplay), mainCurrency.symbol) : '••••••' }}
+                        {{ showBalance ? mainCurrency.formattedBalance : '••••••' }}
                     </h1>
                     <button 
                         @click="toggleBalanceVisibility"
@@ -361,7 +335,7 @@ onUnmounted(() => {
                                     </p>
                                 </div>
                                 <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
-                                    {{ showBalance ? formatCompactAmount(currency.amount, currency.symbol) : '••••' }}
+                                    {{ showBalance ? currency.formattedAmount : '••••' }}
                                 </p>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     Available balance
@@ -463,13 +437,13 @@ onUnmounted(() => {
                             />
                         </div>
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ getTransactionDisplayName(transaction) }}</p>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ transaction.name }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ transaction.date }}</p>
                         </div>
                     </div>
                     <div class="text-right">
                         <p :class="['font-semibold', getTransactionColor(transaction.type)]">
-                            {{ transaction.type === 'received' ? '+' : '-' }} {{ transaction.symbol }} {{ transaction.amount.toFixed(2) }}
+                            {{ transaction.amountDisplay }}
                         </p>
                     </div>
                 </div>
