@@ -11,6 +11,8 @@ use Stripe\Webhook;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\Transaction;
+use App\Models\Currency;
+use App\Models\ExchangeRate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -18,16 +20,33 @@ use Illuminate\Support\Facades\DB;
 class DepositController extends Controller
 {
     /**
-     * Cache key for processing lock
-     * Prevents duplicate deposits while a transaction is in progress
+     * Cache key prefix for processing locks
+     * Prevents race conditions and duplicate deposits
      */
     private const PROCESSING_LOCK_KEY = 'deposit_processing_';
-    private const LOCK_DURATION = 30; // seconds
+    
+    /**
+     * Lock duration in seconds
+     */
+    private const LOCK_DURATION = 30;
+    
+    /**
+     * Rate limit key prefix
+     */
+    private const RATE_LIMIT_KEY = 'deposit_rate_limit_';
+    
+    /**
+     * Rate limit cooldown in seconds
+     */
+    private const RATE_LIMIT_COOLDOWN = 20;
+
+    /**
+     * Stripe fee percentage
+     */
+    private const STRIPE_FEE_PERCENTAGE = 2.9;
 
     /**
      * Display the deposit options page
-     * 
-     * @return \Inertia\Response
      */
     public function index()
     {
@@ -36,8 +55,6 @@ class DepositController extends Controller
 
     /**
      * Display the credit/debit card deposit page
-     * 
-     * @return \Inertia\Response
      */
     public function card()
     {
@@ -46,9 +63,6 @@ class DepositController extends Controller
 
     /**
      * Display the success page after a successful deposit
-     * 
-     * @param Request $request
-     * @return \Inertia\Response|\Illuminate\Http\RedirectResponse
      */
     public function success(Request $request)
     {
@@ -56,112 +70,117 @@ class DepositController extends Controller
         $sessionId = $request->get('session_id');
         
         if ($amount <= 0) {
-            return redirect()->route('dashboard')->with('error', 'Invalid deposit information');
+            return redirect()->route('dashboard')
+                ->with('error', 'Invalid deposit information');
         }
+        
+        $user = $request->user();
+        $defaultWallet = $user->wallets()->where('is_default', true)->first();
+        $currency = $defaultWallet?->currency ?? Currency::where('code', 'USD')->first();
+        $formattedAmount = $currency->format($amount);
         
         return Inertia::render('deposits/Success', [
             'amount' => $amount,
+            'formatted_amount' => $formattedAmount,
             'session_id' => $sessionId,
         ]);
     }
 
     /**
      * Handle cancelled deposit
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function cancel(Request $request)
     {
-        return redirect()->route('deposits.card')->with('error', 'Deposit was cancelled. Please try again.');
+        return redirect()->route('deposits.card')
+            ->with('error', 'Deposit was cancelled. Please try again.');
     }
 
     /**
      * Create a PaymentIntent for the deposit
-     * Includes rate limiting and duplicate prevention
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function createPaymentIntent(Request $request)
     {
-        // Rate limiting: Prevent too many requests in a short time
         $user = $request->user();
-        $rateLimitKey = 'deposit_rate_limit_' . $user->id;
+        
+        // Rate limiting
+        $rateLimitKey = self::RATE_LIMIT_KEY . $user->id;
         
         if (Cache::has($rateLimitKey)) {
-            Log::warning('Rate limit exceeded for deposit', [
-                'user_id' => $user->id,
-                'ip' => $request->ip(),
-            ]);
-            
             return response()->json([
                 'message' => 'Please wait a moment before trying again.',
-            ], 429); // Too Many Requests
+                'retry_after' => self::RATE_LIMIT_COOLDOWN,
+            ], 429);
         }
         
-        // Set rate limit: maximum 3 attempts per minute
-        Cache::put($rateLimitKey, true, 20); // 20 seconds cooldown
+        Cache::put($rateLimitKey, true, self::RATE_LIMIT_COOLDOWN);
         
-        // Validate the deposit amount
-        $request->validate(['amount' => 'required|numeric|min:10|max:5000',]);
+        // Validation
+        $request->validate([
+            'amount' => 'required|numeric|min:10|max:5000',
+            'currency' => 'sometimes|string|size:3',
+        ]);
 
-        $amount = $request->amount;
-
+        $amountInDollars = $request->amount;
         
-        // Check if user already has a pending deposit
+        // Get user's default wallet
+        $defaultWallet = $user->wallets()->where('is_default', true)->first();
+        $targetCurrency = $defaultWallet?->currency ?? Currency::where('code', 'USD')->first();
+        $amountInSmallestUnit = $targetCurrency->toSmallestUnit($amountInDollars);
+        
+        // Check for pending deposit
         $pendingDeposit = Transaction::where('user_id', $user->id)
+            ->where('type', 'deposit')
             ->where('status', 'pending')
             ->where('created_at', '>', now()->subMinutes(10))
             ->first();
             
         if ($pendingDeposit) {
-            Log::warning('User has pending deposit', [
-                'user_id' => $user->id,
-                'pending_transaction_id' => $pendingDeposit->id,
-            ]);
-            
             return response()->json([
                 'message' => 'You already have a pending deposit. Please wait for it to complete.',
-            ], 409); // Conflict
+            ], 409);
         }
 
-        // Calculate total with 2.9% Stripe fee
-        $totalAmount = $amount * 1.029;
+        // Calculate total with fee
+        $feeAmount = $amountInDollars * (self::STRIPE_FEE_PERCENTAGE / 100);
+        $totalAmount = $amountInDollars + $feeAmount;
         $totalInCents = (int) round($totalAmount * 100);
 
-        // Use a lock to prevent race conditions
+        // Acquire lock
         $lockKey = self::PROCESSING_LOCK_KEY . $user->id;
         $lock = Cache::lock($lockKey, self::LOCK_DURATION);
         
         if (!$lock->get()) {
-            Log::warning('Could not acquire lock for deposit', [
-                'user_id' => $user->id,
-            ]);
-            
-            return response()->json(['message' => 'A transaction is already in progress. Please try again.',], 409);
+            return response()->json([
+                'message' => 'A transaction is already in progress. Please try again.',
+            ], 409);
         }
         
         try {
-            // Create a PaymentIntent using Laravel Cashier
+            // Create Stripe PaymentIntent
             $paymentIntent = $user->pay($totalInCents);
             
-            // Create a pending transaction record
-            $transaction = Transaction::create([
+            // Create pending transaction
+            Transaction::create([
                 'user_id' => $user->id,
                 'type' => 'deposit',
-                'amount' => $amount,
+                'destination_wallet_id' => $defaultWallet->id,
+                'amount' => $amountInSmallestUnit,
                 'status' => 'pending',
                 'reference' => $paymentIntent->id,
                 'payment_method' => 'stripe',
-                'description' => 'Deposit via Credit/Debit Card - Pending'
+                'description' => "Deposit of {$amountInDollars} {$targetCurrency->code} pending confirmation",
+                'metadata' => [
+                    'fee_percentage' => self::STRIPE_FEE_PERCENTAGE,
+                    'fee_amount' => $feeAmount,
+                    'original_amount' => $amountInDollars,
+                    'currency_id' => $targetCurrency->id,
+                ],
             ]);
             
             Log::info('PaymentIntent created', [
                 'user_id' => $user->id,
-                'amount' => $amount,
+                'amount' => $amountInDollars,
                 'payment_intent_id' => $paymentIntent->id,
-                'transaction_id' => $transaction->id,
             ]);
             
             $lock->release();
@@ -169,7 +188,8 @@ class DepositController extends Controller
             return response()->json([
                 'clientSecret' => $paymentIntent->client_secret,
                 'paymentIntentId' => $paymentIntent->id,
-                'amount' => $amount,
+                'amount' => $amountInDollars,
+                'currency' => $targetCurrency->code,
             ]);
             
         } catch (\Exception $e) {
@@ -177,7 +197,6 @@ class DepositController extends Controller
             
             Log::error('Failed to create PaymentIntent', [
                 'user_id' => $user->id,
-                'amount' => $amount,
                 'error' => $e->getMessage(),
             ]);
             
@@ -189,34 +208,31 @@ class DepositController extends Controller
 
     /**
      * Confirm successful payment and update user's wallet
-     * Includes idempotency protection to prevent duplicate processing
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function confirmPayment(Request $request)
     {
+        // Validation
         $request->validate([
             'payment_intent_id' => 'required|string',
             'amount' => 'required|numeric|min:10|max:5000',
+            'currency' => 'sometimes|string|size:3',
         ]);
 
         $user = $request->user();
         $paymentIntentId = $request->payment_intent_id;
-        $amount = $request->amount;
+        $amountInDollars = $request->amount;
+        $currencyCode = $request->currency ?? 'USD';
+        
+        // Get currency
+        $currency = Currency::where('code', $currencyCode)->first() ?? Currency::where('code', 'USD')->first();
+        $amountInSmallestUnit = $currency->toSmallestUnit($amountInDollars);
 
-        // Check if this payment has already been processed (idempotency)
+        // Idempotency check
         $existingTransaction = Transaction::where('reference', $paymentIntentId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['completed', 'refunded'])
             ->first();
             
         if ($existingTransaction) {
-            Log::warning('Duplicate payment confirmation attempted', [
-                'user_id' => $user->id,
-                'payment_intent_id' => $paymentIntentId,
-                'existing_transaction_id' => $existingTransaction->id,
-            ]);
-            
             return response()->json([
                 'success' => true,
                 'already_processed' => true,
@@ -224,103 +240,101 @@ class DepositController extends Controller
             ]);
         }
 
-        // Acquire lock to prevent race conditions
+        // Acquire lock
         $lockKey = self::PROCESSING_LOCK_KEY . $user->id;
         $lock = Cache::lock($lockKey, self::LOCK_DURATION);
         
         if (!$lock->get()) {
-            Log::warning('Could not acquire lock for confirmation', [
-                'user_id' => $user->id,
-                'payment_intent_id' => $paymentIntentId,
-            ]);
-            
             return response()->json([
                 'error' => 'A transaction is already in progress. Please try again.',
             ], 409);
         }
 
         try {
-            // Retrieve the PaymentIntent from Stripe to verify it succeeded
+            // Verify payment with Stripe
             $paymentIntent = Cashier::stripe()->paymentIntents->retrieve($paymentIntentId);
             
-            // Verify payment was successful
             if ($paymentIntent->status !== 'succeeded') {
                 $lock->release();
                 
-                // Update pending transaction to failed if exists
                 Transaction::where('reference', $paymentIntentId)
                     ->where('status', 'pending')
                     ->update(['status' => 'failed']);
                 
-                Log::warning('Payment not successful', [
-                    'user_id' => $user->id,
-                    'payment_intent_id' => $paymentIntentId,
-                    'status' => $paymentIntent->status,
-                ]);
-                
-                return response()->json([
-                    'error' => 'Payment not successful'
-                ], 400);
+                return response()->json(['error' => 'Payment not successful'], 400);
             }
             
-            // Double-check if transaction was already completed (race condition safety)
-            $alreadyCompleted = Transaction::where('reference', $paymentIntentId)
-                ->where('status', 'completed')
-                ->exists();
-                
-            if ($alreadyCompleted) {
+            // Double-check for race condition
+            if (Transaction::where('reference', $paymentIntentId)->where('status', 'completed')->exists()) {
                 $lock->release();
-                
                 return response()->json(['success' => true, 'already_processed' => true]);
             }
             
-            // Use database transaction with pessimistic locking
             DB::beginTransaction();
             
             try {
-                // Lock the wallet row for update to prevent concurrent modifications
-                $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
+                // Get pending transaction
+                $pendingTransaction = Transaction::where('reference', $paymentIntentId)
+                    ->where('status', 'pending')
+                    ->first();
+                
+                // Get target wallet
+                $targetWalletId = $pendingTransaction?->destination_wallet_id;
+                
+                if (!$targetWalletId) {
+                    $defaultWallet = $user->wallets()->where('is_default', true)->first();
+                    if (!$defaultWallet) {
+                        $defaultWallet = Wallet::create([
+                            'user_id' => $user->id,
+                            'currency_id' => $currency->id,
+                            'balance' => 0,
+                            'locked_balance' => 0,
+                            'is_default' => true,
+                            'name' => 'Main Account',
+                        ]);
+                    }
+                    $targetWalletId = $defaultWallet->id;
+                }
+                
+                // Lock and update wallet
+                $wallet = Wallet::where('id', $targetWalletId)->lockForUpdate()->first();
                 
                 if (!$wallet) {
                     $wallet = Wallet::create([
                         'user_id' => $user->id,
-                        'balance' => 0
+                        'currency_id' => $currency->id,
+                        'balance' => 0,
+                        'locked_balance' => 0,
+                        'is_default' => false,
+                        'name' => "{$currency->code} Account",
                     ]);
                 }
                 
-                // Update wallet balance
-                $wallet->incrementBalance($amount);
+                // Add funds to wallet
+                $wallet->increaseBalance($amountInSmallestUnit);
                 
-                // Update pending transaction to completed
-                $transaction = Transaction::where('reference', $paymentIntentId)
-                    ->where('status', 'pending')
-                    ->first();
-                    
-                if ($transaction) {
-                    $transaction->update([
+                // Update transaction
+                if ($pendingTransaction) {
+                    $pendingTransaction->update([
                         'status' => 'completed',
-                        'description' => 'Deposit via Credit/Debit Card - Completed'
-                    ]);
-                } else {
-                    // Create transaction record if pending doesn't exist (shouldn't happen)
-                    Transaction::create([
-                        'user_id' => $user->id,
-                        'type' => 'deposit',
-                        'amount' => $amount,
-                        'status' => 'completed',
-                        'reference' => $paymentIntentId,
-                        'payment_method' => 'stripe',
-                        'description' => 'Deposit via Credit/Debit Card'
+                        'amount' => $amountInSmallestUnit,
+                        'completed_at' => now(),
+                        'description' => "Deposit of {$amountInDollars} {$currency->code} completed",
+                        'metadata' => [
+                            'wallet_id' => $wallet->id,
+                            'new_balance' => $wallet->balance,
+                            'available_balance' => $wallet->available_balance,
+                        ],
                     ]);
                 }
                 
                 DB::commit();
                 $lock->release();
                 
-                Log::info('Deposit completed successfully', [
+                Log::info('Deposit completed', [
                     'user_id' => $user->id,
-                    'amount' => $amount,
-                    'payment_intent_id' => $paymentIntentId,
+                    'amount' => $amountInDollars,
+                    'wallet_id' => $wallet->id,
                     'new_balance' => $wallet->balance,
                 ]);
                 
@@ -330,15 +344,13 @@ class DepositController extends Controller
                 DB::rollBack();
                 $lock->release();
                 
-                Log::error('Failed to update wallet after payment', [
+                Log::error('Failed to update wallet', [
                     'user_id' => $user->id,
-                    'amount' => $amount,
-                    'payment_intent_id' => $paymentIntentId,
                     'error' => $e->getMessage(),
                 ]);
                 
                 return response()->json([
-                    'error' => 'Payment confirmed but failed to update wallet. Please contact support.'
+                    'error' => 'Payment confirmed but failed to update wallet. Please contact support.',
                 ], 500);
             }
             
@@ -347,21 +359,17 @@ class DepositController extends Controller
             
             Log::error('Failed to confirm payment', [
                 'user_id' => $user->id,
-                'payment_intent_id' => $paymentIntentId,
                 'error' => $e->getMessage(),
             ]);
             
             return response()->json([
-                'error' => 'Failed to verify payment. Please contact support.'
+                'error' => 'Failed to verify payment. Please contact support.',
             ], 500);
         }
     }
 
     /**
      * Rollback a failed payment (attempt to refund)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function rollbackPayment(Request $request)
     {
@@ -372,47 +380,32 @@ class DepositController extends Controller
         $user = $request->user();
         $paymentIntentId = $request->payment_intent_id;
 
-        // Acquire lock for rollback
         $lockKey = self::PROCESSING_LOCK_KEY . $user->id;
         $lock = Cache::lock($lockKey, self::LOCK_DURATION);
         
         if (!$lock->get()) {
-            return response()->json([
-                'error' => 'A transaction is already in progress.',
-            ], 409);
+            return response()->json(['error' => 'A transaction is already in progress.'], 409);
         }
 
         try {
             $paymentIntent = Cashier::stripe()->paymentIntents->retrieve($paymentIntentId);
             
             if ($paymentIntent->status === 'succeeded') {
-                // Check if already refunded
-                $existingRefunds = Cashier::stripe()->refunds->all([
-                    'payment_intent' => $paymentIntentId,
-                ]);
+                $existingRefunds = Cashier::stripe()->refunds->all(['payment_intent' => $paymentIntentId]);
                 
                 if (count($existingRefunds->data) > 0) {
                     $lock->release();
                     return response()->json(['success' => true, 'already_refunded' => true]);
                 }
                 
-                // Create a refund
                 $refund = Cashier::stripe()->refunds->create([
                     'payment_intent' => $paymentIntentId,
                     'reason' => 'requested_by_customer',
                 ]);
                 
-                // Update transaction status
-                Transaction::where('reference', $paymentIntentId)
-                    ->update(['status' => 'refunded']);
+                Transaction::where('reference', $paymentIntentId)->update(['status' => 'refunded']);
                 
                 $lock->release();
-                
-                Log::info('Payment refunded', [
-                    'user_id' => $user->id,
-                    'payment_intent_id' => $paymentIntentId,
-                    'refund_id' => $refund->id,
-                ]);
                 
                 return response()->json(['success' => true, 'refunded' => true]);
             }
@@ -425,21 +418,17 @@ class DepositController extends Controller
             
             Log::error('Failed to rollback payment', [
                 'user_id' => $user->id,
-                'payment_intent_id' => $paymentIntentId,
                 'error' => $e->getMessage(),
             ]);
             
             return response()->json([
-                'error' => 'Failed to process rollback. Please contact support.'
+                'error' => 'Failed to process rollback. Please contact support.',
             ], 500);
         }
     }
 
     /**
      * Handle Stripe Webhook
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function handleWebhook(Request $request)
     {
@@ -450,23 +439,18 @@ class DepositController extends Controller
         try {
             $event = Webhook::constructEvent($payload, $sigHeader, $webhookSecret);
         } catch (SignatureVerificationException $e) {
-            Log::warning('Invalid webhook signature', [
-                'error' => $e->getMessage(),
-            ]);
-            
             return response()->json(['error' => 'Invalid signature'], 400);
         }
 
-        // Handle checkout.session.completed event
         if ($event->type === 'checkout.session.completed') {
             $session = $event->data->object;
             
             $userId = $session['metadata']['user_id'] ?? null;
-            $amount = $session['metadata']['amount'] ?? 0;
+            $amountInDollars = $session['metadata']['amount'] ?? 0;
             $sessionId = $session['id'];
 
-            if ($userId && $amount > 0) {
-                $this->processSuccessfulDeposit($userId, $amount, $sessionId);
+            if ($userId && $amountInDollars > 0) {
+                $this->processSuccessfulDeposit($userId, $amountInDollars, $sessionId);
             }
         }
 
@@ -474,26 +458,12 @@ class DepositController extends Controller
     }
 
     /**
-     * Process a successful deposit (update wallet and create transaction)
-     * Uses the same protection mechanisms as confirmPayment
-     * 
-     * @param int $userId
-     * @param float $amount
-     * @param string $sessionId
-     * @return void
+     * Process a successful deposit via webhook
      */
-    private function processSuccessfulDeposit($userId, $amount, $sessionId)
+    private function processSuccessfulDeposit(int $userId, float $amountInDollars, string $sessionId): void
     {
         // Check if already processed
-        $existingTransaction = Transaction::where('reference', $sessionId)
-            ->where('status', 'completed')
-            ->first();
-            
-        if ($existingTransaction) {
-            Log::info('Webhook deposit already processed', [
-                'user_id' => $userId,
-                'session_id' => $sessionId,
-            ]);
+        if (Transaction::where('reference', $sessionId)->where('status', 'completed')->exists()) {
             return;
         }
 
@@ -501,56 +471,58 @@ class DepositController extends Controller
         $lock = Cache::lock($lockKey, self::LOCK_DURATION);
         
         if (!$lock->get()) {
-            Log::warning('Could not acquire lock for webhook deposit', [
-                'user_id' => $userId,
-                'session_id' => $sessionId,
-            ]);
             return;
         }
 
         $user = User::find($userId);
-
         if (!$user) {
             $lock->release();
-            Log::warning('User not found for webhook deposit', [
-                'user_id' => $userId,
-                'session_id' => $sessionId,
-            ]);
             return;
         }
+
+        $defaultWallet = $user->wallets()->where('is_default', true)->first();
+        $currency = $defaultWallet?->currency ?? Currency::where('code', 'USD')->first();
+        $amountInSmallestUnit = $currency->toSmallestUnit($amountInDollars);
 
         DB::beginTransaction();
 
         try {
-            // Lock the wallet row
-            $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
+            $wallet = Wallet::where('user_id', $user->id)
+                ->where('is_default', true)
+                ->lockForUpdate()
+                ->first();
             
             if (!$wallet) {
                 $wallet = Wallet::create([
                     'user_id' => $user->id,
-                    'balance' => 0
+                    'currency_id' => $currency->id,
+                    'balance' => 0,
+                    'locked_balance' => 0,
+                    'is_default' => true,
+                    'name' => 'Main Account',
                 ]);
             }
 
-            $wallet->incrementBalance($amount);
+            $wallet->increaseBalance($amountInSmallestUnit);
 
             Transaction::create([
                 'user_id' => $user->id,
                 'type' => 'deposit',
-                'amount' => $amount,
+                'destination_wallet_id' => $wallet->id,
+                'amount' => $amountInSmallestUnit,
                 'status' => 'completed',
                 'reference' => $sessionId,
                 'payment_method' => 'stripe',
-                'description' => 'Deposit via Credit/Debit Card (Webhook)'
+                'description' => "Deposit of {$amountInDollars} {$currency->code} via Webhook",
+                'completed_at' => now(),
             ]);
 
             DB::commit();
             $lock->release();
 
-            Log::info('Webhook deposit processed successfully', [
+            Log::info('Webhook deposit processed', [
                 'user_id' => $user->id,
-                'amount' => $amount,
-                'session_id' => $sessionId,
+                'amount' => $amountInDollars,
             ]);
 
         } catch (\Exception $e) {
@@ -559,8 +531,6 @@ class DepositController extends Controller
             
             Log::error('Webhook deposit failed', [
                 'user_id' => $user->id,
-                'amount' => $amount,
-                'session_id' => $sessionId,
                 'error' => $e->getMessage(),
             ]);
         }

@@ -19,6 +19,34 @@ import {
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 
+// ==================== PROPS ====================
+// Receive real data from Laravel controller
+const props = defineProps<{
+    wallets: Array<{
+        id: number;
+        currency_code: string;
+        currency_symbol: string;
+        balance: number;
+        currency_flag: string;
+        is_default: boolean;
+    }>;
+    recentTransactions: Array<{
+        id: number;
+        type: string;
+        amount: number;
+        currency_code: string;
+        currency_symbol: string;
+        description: string;
+        created_at: string;
+        status: string;
+    }>;
+    totalBalance: number;
+    mainCurrency: {
+        code: string;
+        symbol: string;
+    };
+}>();
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -32,7 +60,7 @@ defineOptions({
 
 // ==================== TYPES & INTERFACES ====================
 interface CurrencyBalance {
-  id: string;
+  id: number;
   code: string;
   symbol: string;
   amount: number;
@@ -64,45 +92,13 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(true);
 
-// Multi-currency balances - Main account is first card
-const currencies = ref<CurrencyBalance[]>([
-  { id: '1', code: 'BRL', symbol: 'R$', amount: 153.77, flag: '🇧🇷', isMain: true },
-  { id: '2', code: 'USD', symbol: '$', amount: 30.35, flag: '🇺🇸', isMain: false },
-  { id: '3', code: 'EUR', symbol: '€', amount: 0.00, flag: '🇪🇺', isMain: false },
-  { id: '4', code: 'GBP', symbol: '£', amount: 125.50, flag: '🇬🇧', isMain: false },
-  { id: '5', code: 'JPY', symbol: '¥', amount: 5000, flag: '🇯🇵', isMain: false },
-]);
+// Transform wallets data from props to component format
+const currencies = ref<CurrencyBalance[]>([]);
 
-const recentTransactions = ref<Transaction[]>([
-  {
-    id: 1,
-    name: 'STEPHANE GABEAU',
-    amount: 23.04,
-    currency: 'BRL',
-    symbol: 'R$',
-    type: 'sent',
-    date: 'Today'
-  },
-  {
-    id: 2,
-    name: 'Netflix Subscription',
-    amount: 45.90,
-    currency: 'BRL',
-    symbol: 'R$',
-    type: 'sent',
-    date: 'Yesterday'
-  },
-  {
-    id: 3,
-    name: 'Freelance Payment',
-    amount: 500.00,
-    currency: 'BRL',
-    symbol: 'R$',
-    type: 'received',
-    date: 'Feb 12, 2026'
-  },
-]);
+// Transform transactions from props to component format
+const recentTransactions = ref<Transaction[]>([]);
 
+// Deposit options (can also come from backend or stay static)
 const depositOptions = ref<DepositOption[]>([
   { id: 'bank', name: 'Bank Transfer', icon: Landmark, fee: 'Free', time: '1-3 days' },
   { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, fee: '2.9%', time: 'Instant' },
@@ -110,12 +106,15 @@ const depositOptions = ref<DepositOption[]>([
 ]);
 
 // ==================== COMPUTED PROPERTIES ====================
-const totalBalance = computed(() => {
-  return currencies.value.reduce((sum, curr) => sum + curr.amount, 0).toFixed(2);
+const totalBalanceDisplay = computed(() => {
+  return props.totalBalance.toFixed(2);
 });
 
 const mainCurrency = computed(() => {
-  return currencies.value.find(c => c.isMain) || currencies.value[0];
+  return {
+    symbol: props.mainCurrency?.symbol || '$',
+    code: props.mainCurrency?.code || 'USD'
+  };
 });
 
 // ==================== METHODS ====================
@@ -142,18 +141,32 @@ const getTransactionIcon = (type: string) => {
   return type === 'received' ? ArrowDownRight : ArrowUpRight;
 };
 
+const getTransactionDisplayName = (transaction: Transaction) => {
+  // If it's a deposit
+  if (transaction.name === 'Deposit') {
+    return 'Deposit';
+  }
+  // If it's a transfer
+  if (transaction.name.startsWith('Transfer')) {
+    return transaction.name;
+  }
+  return transaction.name;
+};
+
 const addNewCurrency = () => {
-  console.log('Add new currency');
+  router.visit('/currencies/add');
 };
 
 const handleDeposit = (option: DepositOption) => {
-  console.log('Deposit with:', option.name);
+  if (option.id === 'card') {
+    router.visit('/deposits/card');
+  } else {
+    console.log('Deposit with:', option.name);
+  }
 };
 
-// Add money button to go to deposit options
 const goToDepositOptions = () => {
-    console.log('Navigating to deposits...'); 
-    router.visit('/deposits');
+  router.visit('/deposits');
 };
 
 // ==================== SCROLL HELPERS ====================
@@ -178,7 +191,46 @@ const handleResize = () => {
   checkScrollButtons();
 };
 
+// Format date to relative time (Today, Yesterday, or date)
+const formatRelativeDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+};
+
+// Process real data on mount
 onMounted(() => {
+  // Transform wallets data
+  currencies.value = props.wallets.map(wallet => ({
+    id: wallet.id,
+    code: wallet.currency_code,
+    symbol: wallet.currency_symbol,
+    amount: wallet.balance,
+    flag: wallet.currency_flag,
+    isMain: wallet.is_default,
+  }));
+  
+  // Transform transactions data
+  recentTransactions.value = props.recentTransactions.map(tx => ({
+    id: tx.id,
+    name: tx.description || (tx.type === 'deposit' ? 'Deposit' : 'Transfer'),
+    amount: tx.amount,
+    currency: tx.currency_code,
+    symbol: tx.currency_symbol,
+    type: tx.type === 'deposit' || tx.type === 'transfer_received' ? 'received' : 'sent',
+    date: formatRelativeDate(tx.created_at),
+  }));
+  
+  // Set up scroll listeners
   if (scrollContainer.value) {
     scrollContainer.value.addEventListener('scroll', checkScrollButtons);
     checkScrollButtons();
@@ -201,9 +253,6 @@ onUnmounted(() => {
 
         <!-- =====================================================
              HEADER SECTION
-             - Earn banner (left) + Add currency button (right)
-             - Total balance with eye toggle
-             - Quick action buttons: Send / Add Money / Request
         ====================================================== -->
         <div class="mb-2">
 
@@ -227,12 +276,8 @@ onUnmounted(() => {
                 <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">Total balance</p>
                 <div class="flex items-center gap-3">
                     <h1 class="truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-                        {{ showBalance ? formatAmount(Number(totalBalance), mainCurrency?.symbol || 'R$') : '••••••' }}
+                        {{ showBalance ? formatAmount(Number(totalBalanceDisplay), mainCurrency.symbol) : '••••••' }}
                     </h1>
-                    <!--
-                        FIX: Eye icon was text-gray-500 with no dark override — nearly invisible in dark mode.
-                        Added dark:text-gray-400 so it stays visible against dark card backgrounds.
-                    -->
                     <button 
                         @click="toggleBalanceVisibility"
                         class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
@@ -243,7 +288,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Quick action buttons: Send / Add money / Request -->
+            <!-- Quick action buttons -->
             <div class="grid grid-cols-3 gap-4">
                 <button class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <Send class="h-6 w-6 text-gray-700 dark:text-gray-300" />
@@ -261,27 +306,12 @@ onUnmounted(() => {
         </div>
 
         <!-- =====================================================
-             CURRENCY CARDS — Horizontal scrollable row
-             
-             FIX (main card ring): Removed `ring-2 ring-emerald-500/50`
-             which was casting too much visual shadow/weight in light mode.
-             Replaced with a softer `ring-1 ring-emerald-400/30` so the
-             main account card is subtly distinguished without looking heavy.
-
-             FIX (Manage button): Removed from non-main cards entirely.
-             Only the main BRL card keeps "Send + Manage".
-             Other currency cards only show "Send".
-             A "Manage currencies" button will be added separately later.
-
-             FIX (Manage button color): In light mode bg-gray-900 was too dark
-             and felt harsh. Changed to bg-gray-700 for light mode, keeping
-             dark:bg-gray-600 for dark mode — both are readable but less heavy.
+             CURRENCY CARDS - Horizontal scrollable row
         ====================================================== -->
         <div class="mb-4">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Your balances</h2>
                 <div class="flex gap-2">
-                    <!-- Left scroll arrow — disabled when already at the start -->
                     <button 
                         @click="scroll('left')" 
                         :disabled="!showLeftArrow"
@@ -294,7 +324,6 @@ onUnmounted(() => {
                     >
                         <ChevronLeft class="h-5 w-5" />
                     </button>
-                    <!-- Right scroll arrow — disabled when already at the end -->
                     <button 
                         @click="scroll('right')" 
                         :disabled="!showRightArrow"
@@ -310,36 +339,23 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Scrollable card track -->
             <div class="relative">
                 <div 
                     ref="scrollContainer"
                     class="scrollbar-hide flex gap-4 overflow-x-auto pb-4"
                     style="scrollbar-width: none; -ms-overflow-style: none;"
                 >
-                    <!-- Currency card loop -->
+                    <!-- Currency cards from real data -->
                     <div 
                         v-for="currency in currencies" 
                         :key="currency.id"
                         class="min-w-[280px] flex-shrink-0 rounded-xl border border-sidebar-border/70 bg-white p-5 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900"
-                        :class="{
-                            /*
-                                FIX: was ring-2 ring-emerald-500/50 which looked heavy (almost like a shadow) in light mode.
-                                ring-1 with lower opacity (30%) is enough to signal 'this is the main account'
-                                without overwhelming the card visually.
-                            */
-                            'ring-1 ring-emerald-400/30 dark:ring-emerald-400/30': currency.isMain
-                        }"
+                        :class="{ 'ring-1 ring-emerald-400/30 dark:ring-emerald-400/30': currency.isMain }"
                     >
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-2xl">{{ currency.flag }}</span>
-                                    <!--
-                                        FIX: was text-gray-600 dark:text-gray-400.
-                                        In dark mode gray-600 (#4b5563) is too dim on gray-900 cards.
-                                        Changed base to text-gray-500 and explicit dark:text-gray-400.
-                                    -->
+                                    <span class="text-2xl">{{ currency.flag || '🌍' }}</span>
                                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">
                                         {{ currency.isMain ? 'Main account' : currency.code }}
                                     </p>
@@ -347,10 +363,6 @@ onUnmounted(() => {
                                 <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
                                     {{ showBalance ? formatCompactAmount(currency.amount, currency.symbol) : '••••' }}
                                 </p>
-                                <!--
-                                    FIX: was text-gray-500 dark:text-gray-400.
-                                    text-gray-500 in dark mode on gray-900 is borderline — bumped to dark:text-gray-400 explicitly.
-                                -->
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     Available balance
                                 </p>
@@ -360,20 +372,7 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <!--
-                            CHANGE: Button layout is now conditional.
-
-                            MAIN ACCOUNT CARD → shows both "Send" and "Manage"
-                                - "Manage" button: changed from bg-gray-900 (too dark in light mode)
-                                  to bg-gray-700 in light / dark:bg-gray-600 in dark mode.
-                                  This is softer while still being a filled CTA.
-
-                            OTHER CURRENCY CARDS → shows only "Send" (full width)
-                                - "Manage" removed; a separate "Manage currencies" button will come later.
-                        -->
                         <div class="mt-4 flex gap-2">
-
-                            <!-- Send button — shown on all cards -->
                             <button 
                                 :class="[
                                     'rounded-lg border border-sidebar-border/70 py-2 text-sm font-medium transition-all hover:bg-gray-50 dark:border-sidebar-border dark:hover:bg-gray-800',
@@ -382,23 +381,16 @@ onUnmounted(() => {
                             >
                                 Send
                             </button>
-
-                            <!-- Manage button — ONLY on main account card -->
                             <button 
                                 v-if="currency.isMain"
                                 class="flex-1 rounded-lg bg-gray-700 py-2 text-sm font-medium text-white transition-all hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500"
                             >
                                 Manage
                             </button>
-
                         </div>
                     </div>
 
-                    <!--
-                        Add new currency card — dashed border placeholder.
-                        FIX: border was border-sidebar-border/70 which can resolve to near-invisible in dark mode.
-                        Replaced with explicit border-gray-300 dark:border-gray-600 for reliable contrast on both themes.
-                    -->
+                    <!-- Add new currency card -->
                     <div 
                         @click="addNewCurrency"
                         class="min-w-[280px] flex-shrink-0 cursor-pointer rounded-xl border-2 border-dashed border-gray-300 bg-white p-5 text-center transition-all hover:border-gray-400 hover:shadow-md dark:border-gray-600 dark:bg-gray-900 dark:hover:border-gray-500"
@@ -409,10 +401,6 @@ onUnmounted(() => {
                             </div>
                             <div>
                                 <p class="font-medium text-gray-900 dark:text-white">Add new currency</p>
-                                <!--
-                                    FIX: was text-gray-500 dark:text-gray-400.
-                                    Explicit dark:text-gray-400 ensures this subtitle is readable in dark mode.
-                                -->
                                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Open account in minutes</p>
                             </div>
                         </div>
@@ -423,12 +411,6 @@ onUnmounted(() => {
 
         <!-- =====================================================
              ADD FUNDS — Deposit options row
-             
-             FIX: ChevronRight was hardcoded text-gray-400 with no dark override.
-             Added dark:text-gray-500 to keep it visible but muted in dark mode.
-
-             FIX: Deposit option fee/time sub-labels were text-gray-500 with no dark override.
-             Added explicit dark:text-gray-400 for better contrast.
         ====================================================== -->
         <div class="mb-4">
             <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Add funds</h2>
@@ -443,17 +425,9 @@ onUnmounted(() => {
                         <component :is="option.icon" class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                         <div>
                             <p class="font-medium text-gray-900 dark:text-white">{{ option.name }}</p>
-                            <!--
-                                FIX: was text-gray-500 only. In dark mode on gray-900 this is borderline.
-                                Added explicit dark:text-gray-400 for reliable legibility.
-                            -->
                             <p class="text-xs text-gray-500 dark:text-gray-400">Fee: {{ option.fee }}</p>
                         </div>
                     </div>
-                    <!--
-                        FIX: was text-gray-400 only, no dark override.
-                        dark:text-gray-500 keeps the chevron visible but subtle in dark mode.
-                    -->
                     <ChevronRight class="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 </div>
             </div>
@@ -461,19 +435,6 @@ onUnmounted(() => {
 
         <!-- =====================================================
              RECENT TRANSACTIONS
-
-             FIX: Transaction icon backgrounds (sent/received) had no dark override.
-             Added dark:bg-red-900/20 and dark:bg-green-900/20 so the icon
-             badge doesn't disappear on dark card surfaces.
-
-             FIX: Transaction name was text-gray-900 with no dark override.
-             Added dark:text-white to stay readable.
-
-             FIX: Transaction date was text-gray-500 with no dark override.
-             Added dark:text-gray-400.
-
-             FIX: Amount colors now include dark mode variants:
-             getTransactionColor() returns both light and dark classes.
         ====================================================== -->
         <div>
             <div class="mb-4 flex items-center justify-between">
@@ -489,11 +450,6 @@ onUnmounted(() => {
                     class="flex items-center justify-between rounded-xl border border-sidebar-border/70 bg-white p-4 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900"
                 >
                     <div class="flex items-center gap-3">
-                        <!--
-                            FIX: icon badge backgrounds had no dark override.
-                            In dark mode the light bg-red-50 / bg-green-50 would look
-                            washed out against the dark card. Added dark:bg variants.
-                        -->
                         <div :class="[
                             'rounded-full p-2',
                             transaction.type === 'received' 
@@ -507,21 +463,21 @@ onUnmounted(() => {
                             />
                         </div>
                         <div>
-                            <!-- FIX: Added dark:text-white — was missing dark override -->
-                            <p class="font-medium text-gray-900 dark:text-white">{{ transaction.name }}</p>
-                            <!-- FIX: Added explicit dark:text-gray-400 for date sub-label -->
+                            <p class="font-medium text-gray-900 dark:text-white">{{ getTransactionDisplayName(transaction) }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ transaction.date }}</p>
                         </div>
                     </div>
                     <div class="text-right">
-                        <!--
-                            Amount: getTransactionColor() now returns both light + dark classes.
-                            e.g. 'text-green-600 dark:text-green-400' or 'text-red-600 dark:text-red-400'
-                        -->
                         <p :class="['font-semibold', getTransactionColor(transaction.type)]">
                             {{ transaction.type === 'received' ? '+' : '-' }} {{ transaction.symbol }} {{ transaction.amount.toFixed(2) }}
                         </p>
                     </div>
+                </div>
+                
+                <!-- Empty state -->
+                <div v-if="recentTransactions.length === 0" class="rounded-xl border border-sidebar-border/70 bg-white p-8 text-center dark:border-sidebar-border dark:bg-gray-900">
+                    <p class="text-gray-500 dark:text-gray-400">No transactions yet</p>
+                    <button @click="goToDepositOptions" class="mt-2 text-sm text-blue-600 hover:underline">Make your first deposit</button>
                 </div>
             </div>
         </div>
@@ -530,19 +486,16 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Hide scrollbar track while keeping scroll functionality */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
 
-/* Smooth easing for all transitions */
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;
 }
 
-/* Momentum-based touch scrolling on iOS + smooth scroll on all */
 .scrollbar-hide {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;

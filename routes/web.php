@@ -1,12 +1,15 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    //Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    // Dashboard route (Inertia view)
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Deposit page routes (Inertia views)
     Route::prefix('deposits')->group(function () {

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('currency_id')->constrained('currencies');
             $table->bigInteger('balance')->default(0);
+            $table->bigInteger('locked_balance')->default(0);
             $table->boolean('is_default')->default(false);
             $table->string('name')->nullable();
             $table->timestamps();
