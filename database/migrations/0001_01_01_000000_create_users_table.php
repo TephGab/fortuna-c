@@ -15,6 +15,11 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('country', 2)->nullable();
+            $table->string('currency', 3)->default('USD');
+            $table->string('timezone')->nullable();
+            $table->ipAddress('registered_ip')->nullable();
+            $table->foreignId('currency_id')->nullable()->constrained('currencies');
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
