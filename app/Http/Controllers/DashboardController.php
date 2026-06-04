@@ -19,7 +19,7 @@ class DashboardController extends Controller
             return redirect()->route('login');
         }
         
-        // Get all currencies first (for easy lookup)
+        // Get all currencies for easy lookup
         $currencies = Currency::all()->keyBy('code');
         
         // Get user's wallets with currency info
@@ -58,11 +58,11 @@ class DashboardController extends Controller
                 $totalBalanceInUSD += $wallet['balance'];
             } elseif ($usdCurrency) {
                 // Simple exchange rate for non-USD currencies
-                $rate = ExchangeRate::getRate(
-                    Currency::where('code', $wallet['currency_code'])->first(),
-                    $usdCurrency
-                );
-                $totalBalanceInUSD += $wallet['balance'] * ($rate ?? 1);
+                $fromCurrency = Currency::where('code', $wallet['currency_code'])->first();
+                if ($fromCurrency) {
+                    $rate = ExchangeRate::getRate($fromCurrency, $usdCurrency);
+                    $totalBalanceInUSD += $wallet['balance'] * ($rate ?? 1);
+                }
             }
         }
         
@@ -91,7 +91,7 @@ class DashboardController extends Controller
                     $isIncoming = false;
                 }
                 
-                // Format date
+                // Format date nicely
                 $date = $transaction->created_at;
                 $now = now();
                 $diffInDays = $date->diffInDays($now);
@@ -106,7 +106,7 @@ class DashboardController extends Controller
                     $dateDisplay = $date->format('M j, Y');
                 }
                 
-                // Transaction name
+                // Transaction display name
                 $displayName = $transaction->description;
                 if (!$displayName) {
                     if ($transaction->type === 'deposit') {
@@ -119,9 +119,10 @@ class DashboardController extends Controller
                 }
                 
                 $currencySymbol = $currency?->symbol ?? '$';
-                $decimalDigits = $currency?->decimal_digits ?? 2;
+                // FIXED: Use 'decimal_places' not 'decimal_digits'
+                $decimalPlaces = $currency?->decimal_places ?? 2;
                 $sign = $type === 'received' ? '+' : '-';
-                $amountDisplay = $sign . $currencySymbol . number_format($amount, $decimalDigits);
+                $amountDisplay = $sign . $currencySymbol . number_format($amount, $decimalPlaces);
                 
                 return [
                     'id' => $transaction->id,
@@ -137,7 +138,7 @@ class DashboardController extends Controller
                 ];
             });
         
-        // Main currency for display
+        // Main currency for total balance display
         $mainCurrency = $defaultWallet 
             ? [
                 'code' => $defaultWallet['currency_code'], 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\ExchangeRate;
 use Illuminate\Database\Eloquent\Model;
 
 class Currency extends Model
@@ -37,6 +38,11 @@ class Currency extends Model
     public function format(int $smallestUnit): string
     {
         $amount = $this->fromSmallestUnit($smallestUnit);
+        
+        if ($this->decimal_places === 0) {
+            return $this->symbol . ' ' . number_format($amount, 0);
+        }
+        
         return $this->symbol . ' ' . number_format($amount, $this->decimal_places);
     }
 
@@ -56,5 +62,21 @@ class Currency extends Model
     public function asTargetExchangeRates()
     {
         return $this->hasMany(ExchangeRate::class, 'target_currency_id');
+    }
+
+     /**
+     * Get exchange rates where this is the from currency
+     */
+    public function fromExchangeRates()
+    {
+        return $this->hasMany(ExchangeRate::class, 'from_currency_id');
+    }
+
+    /**
+     * Get exchange rates where this is the to currency
+     */
+    public function toExchangeRates()
+    {
+        return $this->hasMany(ExchangeRate::class, 'to_currency_id');
     }
 }
