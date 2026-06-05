@@ -1,15 +1,13 @@
 <script setup lang="ts">
 /**
- * Send Money Component
+ * Send Money Component - Mobile First Design
  * 
  * Features:
- * - 3-step guided transfer flow
- * - Real-time exchange rate calculation
- * - Quote system with rate lock (60 seconds)
- * - Multi-currency wallet selection
- * - Recipient details shown on all steps
- * - Recent recipients for quick access
- * - Full error handling with rollback
+ * - Native mobile app feel
+ * - Bottom sheet style step progress
+ * - Swipe to navigate between steps
+ * - Large touch targets
+ * - Smooth animations
  */
 
 import { Head, router } from '@inertiajs/vue3';
@@ -19,8 +17,6 @@ import {
     Send, 
     User, 
     Mail, 
-    ArrowRight,
-    RefreshCw,
     CheckCircle,
     AlertCircle,
     Loader2,
@@ -28,17 +24,12 @@ import {
     Wallet,
     Clock,
     Shield,
-    Building2,
     Smartphone,
-    Sparkles,
-    Search,
-    X,
     CircleDollarSign,
-    TrendingUp,
-    Landmark,
-    CreditCard,
     Info,
-    DollarSign
+    DollarSign,
+    X,
+    ChevronLeft
 } from 'lucide-vue-next';
 
 // ==================== PROPS ====================
@@ -73,7 +64,6 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const quoteId = ref<string | null>(null);
 const showRecent = ref(true);
-const showScanner = ref(false);
 const quoteExpiresIn = ref(0);
 let quoteTimer: NodeJS.Timeout | null = null;
 
@@ -84,6 +74,9 @@ const selectedSourceWallet = ref<any>(null);
 const selectedTargetWallet = ref<any>(null);
 const amount = ref<number | null>(null);
 const transferDetails = ref<any>(null);
+
+// Touch/swipe for mobile
+const touchStartX = ref<number | null>(null);
 
 // ==================== COMPUTED ====================
 const sourceWallets = computed(() => props.wallets);
@@ -120,11 +113,12 @@ const recipientInitials = computed(() => {
         .slice(0, 2);
 });
 
+const progressPercent = computed(() => {
+    return (step.value / 3) * 100;
+});
+
 // ==================== METHODS ====================
 
-/**
- * Navigate back - either to previous step or dashboard
- */
 const goBack = () => {
     if (step.value > 1) {
         step.value--;
@@ -133,9 +127,31 @@ const goBack = () => {
     }
 };
 
-/**
- * Find recipient by email address
- */
+// Swipe handlers for mobile
+const handleTouchStart = (e: TouchEvent) => {
+    touchStartX.value = e.touches[0].clientX;
+};
+
+const handleTouchEnd = (e: TouchEvent) => {
+    if (!touchStartX.value) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.value;
+    
+    if (Math.abs(deltaX) > 50) {
+        if (deltaX > 0 && step.value > 1) {
+            // Swipe right - go back
+            step.value--;
+        } else if (deltaX < 0 && step.value < 3 && canProceed) {
+            // Swipe left - go next
+            if (step.value === 1 && recipientData.value) {
+                step.value++;
+            } else if (step.value === 2 && canProceed.value) {
+                createQuote();
+            }
+        }
+    }
+    touchStartX.value = null;
+};
+
 const findRecipient = async () => {
     if (!recipientEmail.value) {
         error.value = 'Please enter an email address';
@@ -162,7 +178,6 @@ const findRecipient = async () => {
         }
         
         recipientData.value = data;
-        // Auto-select the recipient's default wallet
         selectedTargetWallet.value = data.default_currency;
         step.value = 2;
         
@@ -173,17 +188,11 @@ const findRecipient = async () => {
     }
 };
 
-/**
- * Select a recent recipient
- */
 const selectRecentRecipient = (recip: any) => {
     recipientEmail.value = recip.email;
     findRecipient();
 };
 
-/**
- * Calculate transfer details (exchange rate, fees, etc.)
- */
 const calculateTransfer = async () => {
     if (!selectedSourceWallet.value || !amount.value || !selectedTargetWallet.value) return;
     
@@ -219,9 +228,6 @@ const calculateTransfer = async () => {
     }
 };
 
-/**
- * Create a rate-locked quote for the transfer
- */
 const createQuote = async () => {
     if (!selectedSourceWallet.value || !amount.value || !recipientData.value || !selectedTargetWallet.value) return;
     
@@ -252,7 +258,6 @@ const createQuote = async () => {
         quoteId.value = data.quote_id;
         quoteExpiresIn.value = data.expires_in;
         
-        // Start countdown timer
         if (quoteTimer) clearInterval(quoteTimer);
         quoteTimer = setInterval(() => {
             if (quoteExpiresIn.value > 0) {
@@ -271,9 +276,6 @@ const createQuote = async () => {
     }
 };
 
-/**
- * Execute the transfer
- */
 const executeTransfer = async () => {
     if (!quoteId.value) return;
     
@@ -296,7 +298,6 @@ const executeTransfer = async () => {
             throw new Error(data.error || 'Transfer failed');
         }
         
-        // Redirect to success page
         if (data.redirect_url) {
             window.location.href = data.redirect_url;
         } else {
@@ -309,23 +310,34 @@ const executeTransfer = async () => {
     }
 };
 
-// Clean up timer on unmount
+// Clean up
 onUnmounted(() => {
     if (quoteTimer) clearInterval(quoteTimer);
+    const container = document.querySelector('.send-money-container');
+    if (container) {
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchend', handleTouchEnd);
+    }
 });
 
-// Watch for changes to recalculate transfer details
+// Watchers
 watch([selectedSourceWallet, amount, selectedTargetWallet], () => {
     if (selectedSourceWallet.value && amount.value && amount.value >= 1 && selectedTargetWallet.value) {
         calculateTransfer();
     }
 });
 
-// Auto-select default wallet on mount
+// Mount
 onMounted(() => {
     const defaultWallet = props.wallets.find(w => w.is_default);
     if (defaultWallet) {
         selectedSourceWallet.value = defaultWallet;
+    }
+    
+    const container = document.querySelector('.send-money-container');
+    if (container) {
+        container.addEventListener('touchstart', handleTouchStart);
+        container.addEventListener('touchend', handleTouchEnd);
     }
 });
 </script>
@@ -333,153 +345,115 @@ onMounted(() => {
 <template>
     <Head title="Send Money" />
 
-    <div class="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div class="mx-auto max-w-4xl px-4 py-4 sm:px-6 sm:py-6">
-            
-            <!-- Header -->
-            <div class="mb-6 flex items-center gap-3">
+    <div class="send-money-container min-h-screen bg-gray-50 dark:bg-gray-950">
+        
+        <!-- Header - Mobile First -->
+        <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-950">
+            <div class="flex items-center justify-between px-4 pt-4 pb-2">
                 <button 
                     @click="goBack"
-                    class="rounded-xl p-2 text-gray-500 transition-all hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                    class="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm dark:bg-gray-900"
                 >
-                    <ArrowLeft class="h-5 w-5" />
+                    <ArrowLeft class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </button>
-                <div>
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
-                        Send Money
-                    </h1>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                        Fast and secure transfers
-                    </p>
+                <h1 class="text-lg font-semibold text-gray-900 dark:text-white">Send Money</h1>
+                <div class="w-10"></div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="px-4 pb-3">
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                    <div 
+                        class="h-full rounded-full bg-blue-600 transition-all duration-300"
+                        :style="{ width: `${progressPercent}%` }"
+                    ></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content - Card Swipe Style -->
+        <div class="px-4 py-4">
+            
+            <!-- STEP 1: Recipient -->
+            <div v-show="step === 1" class="animate-fadeIn">
+                <!-- Title -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Who are you sending to?</h2>
+                    <p class="mt-1 text-sm text-gray-500">Enter their email address</p>
                 </div>
                 
-                <!-- Scan to Pay Button (Future Feature) -->
-                <button 
-                    v-if="step === 1"
-                    @click="showScanner = true"
-                    class="ml-auto rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-all hover:bg-gray-100 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-gray-800"
-                >
-                    <Smartphone class="mr-2 inline h-4 w-4" />
-                    Scan to Pay
-                </button>
-            </div>
-
-            <!-- Step Progress -->
-            <div class="mb-6 flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex flex-1 items-center">
-                    <div :class="[
-                        'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold',
-                        step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-800'
-                    ]">1</div>
-                    <div class="ml-2 text-xs font-medium text-gray-600 dark:text-gray-400">Recipient</div>
-                </div>
-                <div class="h-px flex-1 mx-2 bg-gray-200 dark:bg-gray-800"></div>
-                <div class="flex flex-1 items-center">
-                    <div :class="[
-                        'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold',
-                        step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-800'
-                    ]">2</div>
-                    <div class="ml-2 text-xs font-medium text-gray-600 dark:text-gray-400">Amount</div>
-                </div>
-                <div class="h-px flex-1 mx-2 bg-gray-200 dark:bg-gray-800"></div>
-                <div class="flex flex-1 items-center">
-                    <div :class="[
-                        'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold',
-                        step >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-gray-800'
-                    ]">3</div>
-                    <div class="ml-2 text-xs font-medium text-gray-600 dark:text-gray-400">Confirm</div>
-                </div>
-            </div>
-
-            <!-- ==================== STEP 1: Recipient ==================== -->
-            <div v-show="step === 1" class="space-y-4">
                 <!-- Search Input -->
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Recipient's Email
-                    </label>
+                <div class="mb-6">
                     <div class="relative">
-                        <Mail class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Mail class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                         <input 
                             v-model="recipientEmail"
                             type="email"
-                            class="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                            class="h-14 w-full rounded-xl border border-gray-200 pl-12 pr-4 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                             placeholder="friend@example.com"
                             @keyup.enter="findRecipient"
                         />
                     </div>
-                    <button 
-                        @click="findRecipient"
-                        :disabled="isLoading || !recipientEmail"
-                        class="mt-4 w-full rounded-xl bg-gray-900 py-3 font-medium text-white transition-all hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
-                    >
-                        <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                        <span v-else>Continue</span>
-                    </button>
                 </div>
+                
+                <button 
+                    @click="findRecipient"
+                    :disabled="isLoading || !recipientEmail"
+                    class="mb-8 h-14 w-full rounded-xl bg-blue-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                >
+                    <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
+                    <span v-else>Continue</span>
+                </button>
 
                 <!-- Recent Recipients -->
-                <div v-if="recentRecipients.length > 0" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div class="mb-3 flex items-center justify-between">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Recent Recipients</h3>
-                        <button @click="showRecent = !showRecent" class="text-xs text-blue-600">
-                            {{ showRecent ? 'Hide' : 'Show' }}
-                        </button>
-                    </div>
-                    <div v-show="showRecent" class="space-y-2">
+                <div v-if="recentRecipients.length > 0">
+                    <p class="mb-3 text-sm text-gray-500">Recent</p>
+                    <div class="space-y-2">
                         <button
                             v-for="recip in recentRecipients"
                             :key="recip.id"
                             @click="selectRecentRecipient(recip)"
-                            class="flex w-full items-center gap-3 rounded-xl p-3 transition-all hover:bg-gray-50 dark:hover:bg-gray-800"
+                            class="flex w-full items-center gap-3 rounded-xl bg-white p-3 transition-all active:scale-98 dark:bg-gray-900"
                         >
-                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-sm font-medium text-white">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-base font-medium text-white">
                                 {{ recip.avatar }}
                             </div>
                             <div class="flex-1 text-left">
                                 <p class="font-medium text-gray-900 dark:text-white">{{ recip.name }}</p>
-                                <p class="text-xs text-gray-500">{{ recip.email }}</p>
+                                <p class="text-sm text-gray-500">{{ recip.email }}</p>
                             </div>
-                            <ChevronRight class="h-4 w-4 text-gray-400" />
+                            <ChevronRight class="h-5 w-5 text-gray-400" />
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- ==================== STEP 2: Amount ==================== -->
-            <div v-show="step === 2" class="space-y-4">
-                
-                <!-- RECIPIENT SUMMARY CARD (New - shows recipient details clearly) -->
-                <div class="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 p-5 dark:from-blue-950/30 dark:to-indigo-950/30">
-                    <div class="flex items-center gap-4">
-                        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-                            <User class="h-7 w-7" />
-                        </div>
-                        <div class="flex-1">
-                            <p class="text-xs text-blue-600 dark:text-blue-400">Sending to</p>
-                            <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ recipientData?.email }}</p>
-                        </div>
-                        <button 
-                            @click="step = 1" 
-                            class="rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 transition-all hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/30"
-                        >
-                            Change
-                        </button>
-                    </div>
-                    <div class="mt-3 flex items-center gap-2 border-t border-blue-200 pt-3 dark:border-blue-800">
-                        <DollarSign class="h-4 w-4 text-blue-500" />
-                        <span class="text-sm text-gray-600 dark:text-gray-300">Will receive in <strong>{{ selectedTargetWallet?.currency_code }}</strong></span>
-                    </div>
+            <!-- STEP 2: Amount -->
+            <div v-show="step === 2" class="animate-fadeIn">
+                <!-- Title -->
+                <div class="mb-4">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">How much?</h2>
+                    <p class="mt-1 text-sm text-gray-500">Enter the amount to send</p>
                 </div>
-
+                
+                <!-- Recipient Summary -->
+                <div class="mb-6 flex items-center justify-between rounded-xl bg-blue-50 p-4 dark:bg-blue-950/30">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+                            <User class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p class="text-xs text-blue-600 dark:text-blue-400">Sending to</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
+                        </div>
+                    </div>
+                    <button @click="step = 1" class="text-sm text-blue-600">Change</button>
+                </div>
+                
                 <!-- Amount Input -->
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Amount to send
-                    </label>
+                <div class="mb-6">
                     <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xl font-semibold text-gray-500">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-semibold text-gray-400">
                             {{ selectedSourceWallet?.currency_symbol }}
                         </span>
                         <input 
@@ -487,16 +461,16 @@ onMounted(() => {
                             type="number"
                             step="0.01"
                             min="1"
-                            class="w-full rounded-xl border border-gray-200 py-3 pl-12 pr-4 text-xl font-semibold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                            placeholder="0.00"
+                            class="h-16 w-full rounded-xl border border-gray-200 pl-12 pr-4 text-2xl font-semibold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                            placeholder="0"
                         />
                     </div>
-                    <div class="mt-3 flex flex-wrap gap-2">
+                    <div class="mt-3 flex gap-2">
                         <button 
-                            v-for="suggested in [10, 25, 50, 100, 250]"
+                            v-for="suggested in [10, 25, 50, 100]"
                             :key="suggested"
                             @click="amount = suggested"
-                            class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs transition-all hover:border-blue-500 hover:bg-blue-50 dark:border-gray-700 dark:hover:bg-blue-900/20"
+                            class="flex-1 rounded-lg border border-gray-200 py-2 text-sm transition-all active:scale-95 dark:border-gray-700"
                         >
                             {{ selectedSourceWallet?.currency_symbol }}{{ suggested }}
                         </button>
@@ -504,25 +478,23 @@ onMounted(() => {
                 </div>
 
                 <!-- From Wallet -->
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <p class="mb-2 text-xs text-gray-500">From</p>
+                <div class="mb-4">
+                    <p class="mb-2 text-sm text-gray-500">From</p>
                     <div class="space-y-2">
                         <button
                             v-for="wallet in sourceWallets"
                             :key="wallet.id"
                             @click="selectedSourceWallet = wallet"
-                            class="flex w-full items-center justify-between rounded-xl p-3 transition-all"
-                            :class="selectedSourceWallet?.id === wallet.id 
-                                ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500' 
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-800'"
+                            class="flex w-full items-center justify-between rounded-xl bg-white p-4 transition-all active:scale-98 dark:bg-gray-900"
+                            :class="selectedSourceWallet?.id === wallet.id ? 'ring-2 ring-blue-500' : ''"
                         >
                             <div class="flex items-center gap-3">
                                 <div class="rounded-full bg-gray-100 p-2 dark:bg-gray-800">
-                                    <CircleDollarSign class="h-5 w-5 text-gray-600" />
+                                    <CircleDollarSign class="h-5 w-5" />
                                 </div>
-                                <div class="text-left">
-                                    <p class="font-medium text-gray-900 dark:text-white">{{ wallet.currency_code }} Wallet</p>
-                                    <p class="text-xs text-gray-500">{{ wallet.formatted_balance }} available</p>
+                                <div>
+                                    <p class="font-medium">{{ wallet.currency_code }}</p>
+                                    <p class="text-sm text-gray-500">{{ wallet.formatted_balance }}</p>
                                 </div>
                             </div>
                             <CheckCircle v-if="selectedSourceWallet?.id === wallet.id" class="h-5 w-5 text-blue-500" />
@@ -530,175 +502,160 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Recipient Currency Selection -->
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <p class="mb-2 text-xs text-gray-500">Recipient receives in</p>
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            v-for="wallet in recipientWallets"
-                            :key="wallet.id"
-                            @click="selectedTargetWallet = wallet"
-                            class="flex-1 rounded-xl p-3 text-center transition-all"
-                            :class="selectedTargetWallet?.id === wallet.id 
-                                ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500' 
-                                : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700'"
-                        >
-                            <p class="font-medium text-gray-900 dark:text-white">{{ wallet.currency_code }}</p>
-                            <p class="text-xs text-gray-500">{{ wallet.currency_symbol }}</p>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Transfer Details -->
-                <div v-if="transferDetails" class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                <!-- Transfer Summary -->
+                <div v-if="transferDetails" class="mb-6 rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
                     <div class="space-y-2">
-                        <div v-if="transferDetails.is_cross_currency" class="flex justify-between text-sm">
-                            <span class="text-gray-600 dark:text-gray-400">Exchange rate</span>
-                            <span class="font-medium text-gray-900 dark:text-white">
-                                1 {{ transferDetails.source_currency }} = {{ transferDetails.rate }} {{ transferDetails.target_currency }}
-                            </span>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">Recipient gets</span>
+                            <span class="font-semibold text-emerald-600">{{ formattedConvertedAmount || formattedTotal }}</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-600 dark:text-gray-400">Recipient gets</span>
-                            <span class="font-medium text-emerald-600">
-                                {{ formattedConvertedAmount }}
-                            </span>
+                            <span class="text-gray-500">Fee ({{ transferDetails.fee_percentage }}%)</span>
+                            <span class="text-gray-700">{{ formattedFee }}</span>
                         </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-600 dark:text-gray-400">Transfer fee ({{ transferDetails.fee_percentage }}%)</span>
-                            <span class="font-medium text-gray-900 dark:text-white">{{ formattedFee }}</span>
-                        </div>
-                        <div class="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold dark:border-gray-700">
-                            <span class="text-gray-900 dark:text-white">Total to debit</span>
+                        <div class="flex justify-between border-t border-gray-200 pt-2 text-base font-bold dark:border-gray-700">
+                            <span>Total to pay</span>
                             <span class="text-blue-600">{{ formattedTotal }}</span>
                         </div>
-                        <div class="text-xs text-gray-500">
-                            Remaining balance: {{ transferDetails.source_symbol }} {{ transferDetails.remaining_balance.toFixed(2) }}
-                        </div>
                     </div>
                 </div>
 
-                <!-- Error -->
-                <div v-if="error" class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-                    <div class="flex items-start gap-2">
-                        <AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
-                        <p class="text-sm text-red-700">{{ error }}</p>
-                    </div>
-                </div>
-
-                <!-- Continue Button -->
                 <button 
                     @click="createQuote"
                     :disabled="!canProceed || isLoading"
-                    class="w-full rounded-xl bg-gray-900 py-3 font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
+                    class="h-14 w-full rounded-xl bg-blue-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
                 >
                     <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
                     <span v-else>Continue</span>
                 </button>
             </div>
 
-            <!-- ==================== STEP 3: Confirm ==================== -->
-            <div v-show="step === 3" class="space-y-4">
-                <!-- RECIPIENT CARD (New - shows recipient details for verification) -->
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Transfer Details</h3>
-                        <div class="flex items-center gap-1 text-xs text-gray-500">
-                            <Clock class="h-3 w-3" />
-                            <span :class="{ 'text-red-500': quoteExpiresIn < 10 }">
-                                Rate locked for {{ quoteExpiresIn }}s
-                            </span>
-                        </div>
+            <!-- STEP 3: Confirm -->
+            <div v-show="step === 3" class="animate-fadeIn">
+                <!-- Title -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Confirm transfer</h2>
+                    <p class="mt-1 text-sm text-gray-500">Review details before sending</p>
+                </div>
+                
+                <!-- Rate Lock Timer -->
+                <div class="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
+                    <div class="flex items-center gap-2">
+                        <Clock class="h-4 w-4 text-amber-600" />
+                        <span class="text-sm text-amber-700 dark:text-amber-400">Rate locked for</span>
                     </div>
-                    
-                    <!-- Recipient Info Box -->
-                    <div class="mb-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
-                        <div class="flex items-center gap-3">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                                {{ recipientInitials }}
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Recipient</p>
-                                <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
-                                <p class="text-xs text-gray-500">{{ recipientData?.email }}</p>
-                            </div>
+                    <span class="font-mono text-lg font-bold text-amber-700 dark:text-amber-400">{{ quoteExpiresIn }}s</span>
+                </div>
+                
+                <!-- Transfer Details Card -->
+                <div class="mb-6 rounded-xl bg-white p-5 dark:bg-gray-900">
+                    <!-- Recipient -->
+                    <div class="mb-4 flex items-center gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                            {{ recipientInitials }}
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Recipient</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
+                            <p class="text-sm text-gray-500">{{ recipientData?.email }}</p>
                         </div>
                     </div>
                     
                     <div class="space-y-3">
-                        <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                            <span class="text-sm text-gray-500">From</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_code }} Wallet</span>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">From</span>
+                            <span class="font-medium">{{ selectedSourceWallet?.currency_code }}</span>
                         </div>
-                        <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                            <span class="text-sm text-gray-500">Amount</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_symbol }}{{ amount?.toFixed(2) }}</span>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Amount</span>
+                            <span class="font-medium">{{ selectedSourceWallet?.currency_symbol }}{{ amount?.toFixed(2) }}</span>
                         </div>
-                        <div v-if="transferDetails?.is_cross_currency" class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                            <span class="text-sm text-gray-500">Recipient gets</span>
-                            <span class="text-sm font-medium text-emerald-600">{{ formattedConvertedAmount }}</span>
+                        <div v-if="transferDetails?.is_cross_currency" class="flex justify-between">
+                            <span class="text-gray-500">Recipient gets</span>
+                            <span class="font-medium text-emerald-600">{{ formattedConvertedAmount }}</span>
                         </div>
-                        <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                            <span class="text-sm text-gray-500">Fee</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ formattedFee }}</span>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Fee</span>
+                            <span class="font-medium">{{ formattedFee }}</span>
                         </div>
-                        <div class="flex justify-between pt-2">
-                            <span class="font-semibold text-gray-900 dark:text-white">Total</span>
-                            <span class="font-bold text-blue-600">{{ formattedTotal }}</span>
+                        <div class="flex justify-between border-t border-gray-100 pt-3 text-lg font-bold dark:border-gray-800">
+                            <span>Total</span>
+                            <span class="text-blue-600">{{ formattedTotal }}</span>
                         </div>
                     </div>
                 </div>
-
-                <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                    <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <Shield class="h-4 w-4" />
-                        <span>Protected and encrypted transfer</span>
-                    </div>
-                    <div class="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                        <Info class="h-3 w-3" />
-                        <span>Once confirmed, this transfer cannot be reversed</span>
-                    </div>
+                
+                <!-- Warning -->
+                <div class="mb-6 flex items-center gap-2 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
+                    <Shield class="h-5 w-5 text-emerald-600" />
+                    <span class="text-sm text-gray-600 dark:text-gray-400">This transfer cannot be reversed once confirmed</span>
                 </div>
 
                 <div class="flex gap-3">
                     <button 
                         @click="step = 2"
-                        class="flex-1 rounded-xl border border-gray-300 py-3 font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                        class="h-14 flex-1 rounded-xl border border-gray-300 font-medium transition-all active:scale-95 dark:border-gray-700"
                     >
                         Back
                     </button>
                     <button 
                         @click="executeTransfer"
                         :disabled="isLoading || quoteExpiresIn === 0"
-                        class="flex-1 rounded-xl bg-emerald-600 py-3 font-semibold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
+                        class="h-14 flex-1 rounded-xl bg-emerald-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
                     >
                         <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                        <span v-else>Confirm & Send</span>
+                        <span v-else>Send {{ formattedTotal }}</span>
                     </button>
                 </div>
+            </div>
+            
+            <!-- Error Display -->
+            <div v-if="error" class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                <div class="flex items-start gap-2">
+                    <AlertCircle class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+                    <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
+                    <button @click="error = null" class="ml-auto rounded-lg p-1 hover:bg-red-100">
+                        <X class="h-4 w-4 text-red-600" />
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Swipe Hint -->
+            <div v-if="step < 3 && step === 1 && !recipientData" class="mt-6 text-center">
+                <p class="text-xs text-gray-400">← Swipe back • Continue →</p>
             </div>
         </div>
     </div>
 </template>
 
 <style scoped>
-/* Smooth transitions */
-.transition-all {
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
 }
 
-/* Hide number input arrows */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.active\:scale-98:active {
+    transform: scale(0.98);
+}
+
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     opacity: 0.5;
 }
 
-/* Better touch targets on mobile */
-@media (max-width: 640px) {
-    button, [role="button"] {
-        min-height: 44px;
-    }
+/* Mobile touch optimizations */
+button, [role="button"] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 </style>
