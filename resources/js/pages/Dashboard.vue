@@ -264,7 +264,7 @@ onUnmounted(() => {
 
             <!-- Quick action buttons -->
             <div class="grid grid-cols-3 gap-4">
-                <button class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
+                <button @click="router.visit('/transfers')" class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <Send class="h-6 w-6 text-gray-700 dark:text-gray-300" />
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Send</span>
                 </button>

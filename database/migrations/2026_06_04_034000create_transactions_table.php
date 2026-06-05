@@ -30,7 +30,7 @@ return new class extends Migration
             $table->decimal('exchange_rate', 12, 6)->nullable();
             $table->foreignId('exchange_rate_id')->nullable()->constrained('exchange_rates');
             
-            $table->string('reference')->nullable()->unique();
+            $table->string('reference')->nullable();
             $table->string('external_reference')->nullable();
             
             $table->enum('status', ['pending', 'completed', 'failed', 'cancelled', 'refunded'])->default('pending');

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\TransferController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -20,6 +21,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/success', [DepositController::class, 'success'])->name('deposits.success');
         Route::get('/cancel', [DepositController::class, 'cancel'])->name('deposits.cancel');
     });
+
+    // Transfer routes
+    Route::prefix('transfers')->group(function () {
+        Route::get('/', [TransferController::class, 'index'])->name('transfers.index');
+        Route::post('/get-recipient', [TransferController::class, 'getRecipient']);
+        Route::post('/calculate', [TransferController::class, 'calculateTransfer']);
+        Route::post('/create-quote', [TransferController::class, 'createQuote']);
+        Route::post('/execute', [TransferController::class, 'executeTransfer']);
+        Route::get('/success', [TransferController::class, 'success'])->name('transfers.success');
+    });
+
 });
 
 // API routes (no Inertia, just JSON responses)
