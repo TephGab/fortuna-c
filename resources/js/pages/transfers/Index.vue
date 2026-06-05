@@ -7,6 +7,7 @@
  * - Real-time exchange rate calculation
  * - Quote system with rate lock (60 seconds)
  * - Multi-currency wallet selection
+ * - Recipient details shown on all steps
  * - Recent recipients for quick access
  * - Full error handling with rollback
  */
@@ -35,7 +36,9 @@ import {
     CircleDollarSign,
     TrendingUp,
     Landmark,
-    CreditCard
+    CreditCard,
+    Info,
+    DollarSign
 } from 'lucide-vue-next';
 
 // ==================== PROPS ====================
@@ -105,6 +108,16 @@ const formattedTotal = computed(() => {
 const formattedConvertedAmount = computed(() => {
     if (!transferDetails.value || !transferDetails.value.is_cross_currency) return '';
     return `${transferDetails.value.target_symbol} ${transferDetails.value.converted_amount.toFixed(2)}`;
+});
+
+const recipientInitials = computed(() => {
+    if (!recipientData.value) return '';
+    return recipientData.value.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
 });
 
 // ==================== METHODS ====================
@@ -378,8 +391,9 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Step 1: Recipient -->
+            <!-- ==================== STEP 1: Recipient ==================== -->
             <div v-show="step === 1" class="space-y-4">
+                <!-- Search Input -->
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Recipient's Email
@@ -407,7 +421,7 @@ onMounted(() => {
                 <!-- Recent Recipients -->
                 <div v-if="recentRecipients.length > 0" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-3 flex items-center justify-between">
-                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Recent</h3>
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Recent Recipients</h3>
                         <button @click="showRecent = !showRecent" class="text-xs text-blue-600">
                             {{ showRecent ? 'Hide' : 'Show' }}
                         </button>
@@ -419,7 +433,7 @@ onMounted(() => {
                             @click="selectRecentRecipient(recip)"
                             class="flex w-full items-center gap-3 rounded-xl p-3 transition-all hover:bg-gray-50 dark:hover:bg-gray-800"
                         >
-                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-sm font-medium text-white">
                                 {{ recip.avatar }}
                             </div>
                             <div class="flex-1 text-left">
@@ -432,8 +446,33 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Step 2: Amount -->
+            <!-- ==================== STEP 2: Amount ==================== -->
             <div v-show="step === 2" class="space-y-4">
+                
+                <!-- RECIPIENT SUMMARY CARD (New - shows recipient details clearly) -->
+                <div class="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 p-5 dark:from-blue-950/30 dark:to-indigo-950/30">
+                    <div class="flex items-center gap-4">
+                        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+                            <User class="h-7 w-7" />
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-xs text-blue-600 dark:text-blue-400">Sending to</p>
+                            <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ recipientData?.email }}</p>
+                        </div>
+                        <button 
+                            @click="step = 1" 
+                            class="rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 transition-all hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                        >
+                            Change
+                        </button>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2 border-t border-blue-200 pt-3 dark:border-blue-800">
+                        <DollarSign class="h-4 w-4 text-blue-500" />
+                        <span class="text-sm text-gray-600 dark:text-gray-300">Will receive in <strong>{{ selectedTargetWallet?.currency_code }}</strong></span>
+                    </div>
+                </div>
+
                 <!-- Amount Input -->
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -491,7 +530,7 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- To - Recipient Currency Selection -->
+                <!-- Recipient Currency Selection -->
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <p class="mb-2 text-xs text-gray-500">Recipient receives in</p>
                     <div class="flex flex-wrap gap-2">
@@ -558,11 +597,12 @@ onMounted(() => {
                 </button>
             </div>
 
-            <!-- Step 3: Confirm -->
+            <!-- ==================== STEP 3: Confirm ==================== -->
             <div v-show="step === 3" class="space-y-4">
+                <!-- RECIPIENT CARD (New - shows recipient details for verification) -->
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Confirm Transfer</h3>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Transfer Details</h3>
                         <div class="flex items-center gap-1 text-xs text-gray-500">
                             <Clock class="h-3 w-3" />
                             <span :class="{ 'text-red-500': quoteExpiresIn < 10 }">
@@ -571,14 +611,24 @@ onMounted(() => {
                         </div>
                     </div>
                     
+                    <!-- Recipient Info Box -->
+                    <div class="mb-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                                {{ recipientInitials }}
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500">Recipient</p>
+                                <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
+                                <p class="text-xs text-gray-500">{{ recipientData?.email }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="space-y-3">
                         <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
                             <span class="text-sm text-gray-500">From</span>
                             <span class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_code }} Wallet</span>
-                        </div>
-                        <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                            <span class="text-sm text-gray-500">To</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ recipientData?.name }}</span>
                         </div>
                         <div class="flex justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
                             <span class="text-sm text-gray-500">Amount</span>
@@ -604,6 +654,10 @@ onMounted(() => {
                         <Shield class="h-4 w-4" />
                         <span>Protected and encrypted transfer</span>
                     </div>
+                    <div class="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                        <Info class="h-3 w-3" />
+                        <span>Once confirmed, this transfer cannot be reversed</span>
+                    </div>
                 </div>
 
                 <div class="flex gap-3">
@@ -619,7 +673,7 @@ onMounted(() => {
                         class="flex-1 rounded-xl bg-emerald-600 py-3 font-semibold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
                     >
                         <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                        <span v-else>Send Money</span>
+                        <span v-else>Confirm & Send</span>
                     </button>
                 </div>
             </div>
@@ -639,5 +693,12 @@ onMounted(() => {
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     opacity: 0.5;
+}
+
+/* Better touch targets on mobile */
+@media (max-width: 640px) {
+    button, [role="button"] {
+        min-height: 44px;
+    }
 }
 </style>
