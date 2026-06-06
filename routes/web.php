@@ -20,6 +20,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/wire-transfer', [DepositController::class, 'wireTransfer'])->name('deposits.wire-transfer');
         Route::get('/success', [DepositController::class, 'success'])->name('deposits.success');
         Route::get('/cancel', [DepositController::class, 'cancel'])->name('deposits.cancel');
+        Route::get('/paypal', [DepositController::class, 'paypal'])->name('paypal');
+        // Authorized Agent deposit
+        Route::get('/authorized-agent', [DepositController::class, 'authorizedAgent'])->name('authorized-agent');
     });
 
     // Transfer routes

@@ -62,6 +62,14 @@ class DepositController extends Controller
     }
 
     /**
+     * Display the authorized agent page
+     */
+    public function authorizedAgent()
+    {
+        return Inertia::render('deposits/AuthorizedAgent');
+    }
+
+    /**
      * Display the success page after a successful deposit
      */
     public function success(Request $request)

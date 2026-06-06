@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { CreditCard, Landmark, Send, ArrowLeft, ChevronRight, Zap, Clock } from 'lucide-vue-next';
+import { 
+    CreditCard, 
+    Landmark, 
+    Send, 
+    ArrowLeft, 
+    ChevronRight, 
+    Zap, 
+    Clock, 
+    Wallet, 
+    Building2 
+} from 'lucide-vue-next';
 
 const depositMethods = [
     {
@@ -17,37 +27,71 @@ const depositMethods = [
         badgeColor: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
     },
     {
-        id: 'bank-transfer',
-        name: 'Bank Transfer',
-        description: 'Direct from your bank account',
-        icon: Landmark,
-        fee: 'Free',
-        processingTime: '1–3 days',
-        badge: 'No fees',
+        id: 'paypal',
+        name: 'PayPal',
+        description: 'Secure deposit with PayPal balance or linked cards',
+        icon: Wallet,
+        fee: '3.5%',
+        processingTime: 'Instant',
+        badge: 'Popular',
+        gradient: 'from-blue-500 to-sky-500',
+        iconBg: 'bg-blue-50 dark:bg-blue-500/10',
+        iconColor: 'text-blue-600 dark:text-blue-400',
+        badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+    },
+    {
+        id: 'authorized-agent',
+        name: 'Authorized Agent',
+        description: 'Deposit cash at any authorized agent location',
+        icon: Building2,
+        fee: '1.5%',
+        processingTime: 'Same day',
+        badge: 'Cash',
         gradient: 'from-emerald-500 to-teal-500',
         iconBg: 'bg-emerald-50 dark:bg-emerald-500/10',
         iconColor: 'text-emerald-600 dark:text-emerald-400',
         badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
     },
-    {
-        id: 'wire-transfer',
-        name: 'Wire Transfer',
-        description: 'For large amounts',
-        icon: Send,
-        fee: '$15',
-        processingTime: 'Same day',
-        badge: 'Large amounts',
-        gradient: 'from-amber-500 to-orange-500',
-        iconBg: 'bg-amber-50 dark:bg-amber-500/10',
-        iconColor: 'text-amber-600 dark:text-amber-400',
-        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
-    }
+    // Bank Transfer - Commented for now
+    // {
+    //     id: 'bank-transfer',
+    //     name: 'Bank Transfer',
+    //     description: 'Direct from your bank account',
+    //     icon: Landmark,
+    //     fee: 'Free',
+    //     processingTime: '1–3 days',
+    //     badge: 'No fees',
+    //     gradient: 'from-emerald-500 to-teal-500',
+    //     iconBg: 'bg-emerald-50 dark:bg-emerald-500/10',
+    //     iconColor: 'text-emerald-600 dark:text-emerald-400',
+    //     badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    // },
+    // Wire Transfer - Commented for now
+    // {
+    //     id: 'wire-transfer',
+    //     name: 'Wire Transfer',
+    //     description: 'For large amounts',
+    //     icon: Send,
+    //     fee: '$15',
+    //     processingTime: 'Same day',
+    //     badge: 'Large amounts',
+    //     gradient: 'from-amber-500 to-orange-500',
+    //     iconBg: 'bg-amber-50 dark:bg-amber-500/10',
+    //     iconColor: 'text-amber-600 dark:text-amber-400',
+    //     badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+    // }
 ];
 
 const goBack = () => router.visit('/dashboard');
 
 const selectMethod = (methodId: string) => {
-    if (methodId === 'card') router.visit('/deposits/card');
+    if (methodId === 'card') {
+        router.visit('/deposits/card');
+    } else if (methodId === 'paypal') {
+        router.visit('/deposits/paypal');
+    } else if (methodId === 'authorized-agent') {
+        router.visit('/deposits/authorized-agent');
+    }
 };
 </script>
 
