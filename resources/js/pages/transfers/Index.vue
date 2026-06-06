@@ -1,13 +1,7 @@
 <script setup lang="ts">
 /**
  * Send Money Component - Mobile First Design
- * 
- * Features:
- * - Native mobile app feel
- * - Bottom sheet style step progress
- * - Swipe to navigate between steps
- * - Large touch targets
- * - Smooth animations
+ * Matches dashboard color scheme - No green, neutral grays only
  */
 
 import { Head, router } from '@inertiajs/vue3';
@@ -29,7 +23,7 @@ import {
     Info,
     DollarSign,
     X,
-    ChevronLeft
+    TrendingUp
 } from 'lucide-vue-next';
 
 // ==================== PROPS ====================
@@ -64,8 +58,6 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const quoteId = ref<string | null>(null);
 const showRecent = ref(true);
-const quoteExpiresIn = ref(0);
-let quoteTimer: NodeJS.Timeout | null = null;
 
 // Form data
 const recipientEmail = ref('');
@@ -127,7 +119,6 @@ const goBack = () => {
     }
 };
 
-// Swipe handlers for mobile
 const handleTouchStart = (e: TouchEvent) => {
     touchStartX.value = e.touches[0].clientX;
 };
@@ -138,10 +129,8 @@ const handleTouchEnd = (e: TouchEvent) => {
     
     if (Math.abs(deltaX) > 50) {
         if (deltaX > 0 && step.value > 1) {
-            // Swipe right - go back
             step.value--;
         } else if (deltaX < 0 && step.value < 3 && canProceed) {
-            // Swipe left - go next
             if (step.value === 1 && recipientData.value) {
                 step.value++;
             } else if (step.value === 2 && canProceed.value) {
@@ -256,17 +245,6 @@ const createQuote = async () => {
         }
         
         quoteId.value = data.quote_id;
-        quoteExpiresIn.value = data.expires_in;
-        
-        if (quoteTimer) clearInterval(quoteTimer);
-        quoteTimer = setInterval(() => {
-            if (quoteExpiresIn.value > 0) {
-                quoteExpiresIn.value--;
-            } else {
-                if (quoteTimer) clearInterval(quoteTimer);
-            }
-        }, 1000);
-        
         step.value = 3;
         
     } catch (err: any) {
@@ -310,9 +288,7 @@ const executeTransfer = async () => {
     }
 };
 
-// Clean up
 onUnmounted(() => {
-    if (quoteTimer) clearInterval(quoteTimer);
     const container = document.querySelector('.send-money-container');
     if (container) {
         container.removeEventListener('touchstart', handleTouchStart);
@@ -320,14 +296,12 @@ onUnmounted(() => {
     }
 });
 
-// Watchers
 watch([selectedSourceWallet, amount, selectedTargetWallet], () => {
     if (selectedSourceWallet.value && amount.value && amount.value >= 1 && selectedTargetWallet.value) {
         calculateTransfer();
     }
 });
 
-// Mount
 onMounted(() => {
     const defaultWallet = props.wallets.find(w => w.is_default);
     if (defaultWallet) {
@@ -347,12 +321,12 @@ onMounted(() => {
 
     <div class="send-money-container min-h-screen bg-gray-50 dark:bg-gray-950">
         
-        <!-- Header - Mobile First -->
+        <!-- Header -->
         <div class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-950">
             <div class="flex items-center justify-between px-4 pt-4 pb-2">
                 <button 
                     @click="goBack"
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm dark:bg-gray-900"
+                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
                 >
                     <ArrowLeft class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </button>
@@ -360,36 +334,34 @@ onMounted(() => {
                 <div class="w-10"></div>
             </div>
             
-            <!-- Progress Bar -->
+            <!-- Progress Bar - Perfect size (3px) -->
             <div class="px-4 pb-3">
-                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                <div class="h-[3px] w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
                     <div 
-                        class="h-full rounded-full bg-blue-600 transition-all duration-300"
+                        class="h-full rounded-full bg-gray-500 transition-all duration-300 dark:bg-gray-500"
                         :style="{ width: `${progressPercent}%` }"
                     ></div>
                 </div>
             </div>
         </div>
 
-        <!-- Main Content - Card Swipe Style -->
+        <!-- Main Content -->
         <div class="px-4 py-4">
             
             <!-- STEP 1: Recipient -->
             <div v-show="step === 1" class="animate-fadeIn">
-                <!-- Title -->
                 <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Who are you sending to?</h2>
-                    <p class="mt-1 text-sm text-gray-500">Enter their email address</p>
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Who are you sending to?</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter their email address</p>
                 </div>
                 
-                <!-- Search Input -->
                 <div class="mb-6">
                     <div class="relative">
                         <Mail class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                         <input 
                             v-model="recipientEmail"
                             type="email"
-                            class="h-14 w-full rounded-xl border border-gray-200 pl-12 pr-4 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                            class="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-lg focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-gray-500/20"
                             placeholder="friend@example.com"
                             @keyup.enter="findRecipient"
                         />
@@ -399,28 +371,27 @@ onMounted(() => {
                 <button 
                     @click="findRecipient"
                     :disabled="isLoading || !recipientEmail"
-                    class="mb-8 h-14 w-full rounded-xl bg-blue-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                    class="mb-8 h-14 w-full rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                 >
                     <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
                     <span v-else>Continue</span>
                 </button>
 
-                <!-- Recent Recipients -->
                 <div v-if="recentRecipients.length > 0">
-                    <p class="mb-3 text-sm text-gray-500">Recent</p>
+                    <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">Recent</p>
                     <div class="space-y-2">
                         <button
                             v-for="recip in recentRecipients"
                             :key="recip.id"
                             @click="selectRecentRecipient(recip)"
-                            class="flex w-full items-center gap-3 rounded-xl bg-white p-3 transition-all active:scale-98 dark:bg-gray-900"
+                            class="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all active:scale-98 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800"
                         >
-                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-base font-medium text-white">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200 text-base font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                                 {{ recip.avatar }}
                             </div>
                             <div class="flex-1 text-left">
                                 <p class="font-medium text-gray-900 dark:text-white">{{ recip.name }}</p>
-                                <p class="text-sm text-gray-500">{{ recip.email }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ recip.email }}</p>
                             </div>
                             <ChevronRight class="h-5 w-5 text-gray-400" />
                         </button>
@@ -430,24 +401,23 @@ onMounted(() => {
 
             <!-- STEP 2: Amount -->
             <div v-show="step === 2" class="animate-fadeIn">
-                <!-- Title -->
                 <div class="mb-4">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">How much?</h2>
-                    <p class="mt-1 text-sm text-gray-500">Enter the amount to send</p>
+                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">How much?</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter the amount to send</p>
                 </div>
                 
                 <!-- Recipient Summary -->
-                <div class="mb-6 flex items-center justify-between rounded-xl bg-blue-50 p-4 dark:bg-blue-950/30">
+                <div class="mb-6 flex items-center justify-between rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
                     <div class="flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 text-white dark:bg-gray-600">
                             <User class="h-5 w-5" />
                         </div>
                         <div>
-                            <p class="text-xs text-blue-600 dark:text-blue-400">Sending to</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Sending to</p>
                             <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
                         </div>
                     </div>
-                    <button @click="step = 1" class="text-sm text-blue-600">Change</button>
+                    <button @click="step = 1" class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">Change</button>
                 </div>
                 
                 <!-- Amount Input -->
@@ -461,7 +431,7 @@ onMounted(() => {
                             type="number"
                             step="0.01"
                             min="1"
-                            class="h-16 w-full rounded-xl border border-gray-200 pl-12 pr-4 text-2xl font-semibold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                            class="h-16 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-2xl font-semibold focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                             placeholder="0"
                         />
                     </div>
@@ -470,7 +440,7 @@ onMounted(() => {
                             v-for="suggested in [10, 25, 50, 100]"
                             :key="suggested"
                             @click="amount = suggested"
-                            class="flex-1 rounded-lg border border-gray-200 py-2 text-sm transition-all active:scale-95 dark:border-gray-700"
+                            class="flex-1 rounded-lg border border-gray-200 bg-white py-2 text-sm transition-all active:scale-95 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
                         >
                             {{ selectedSourceWallet?.currency_symbol }}{{ suggested }}
                         </button>
@@ -479,25 +449,25 @@ onMounted(() => {
 
                 <!-- From Wallet -->
                 <div class="mb-4">
-                    <p class="mb-2 text-sm text-gray-500">From</p>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">From</p>
                     <div class="space-y-2">
                         <button
                             v-for="wallet in sourceWallets"
                             :key="wallet.id"
                             @click="selectedSourceWallet = wallet"
-                            class="flex w-full items-center justify-between rounded-xl bg-white p-4 transition-all active:scale-98 dark:bg-gray-900"
-                            :class="selectedSourceWallet?.id === wallet.id ? 'ring-2 ring-blue-500' : ''"
+                            class="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white p-4 transition-all active:scale-98 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800"
+                            :class="selectedSourceWallet?.id === wallet.id ? 'ring-2 ring-gray-900 dark:ring-gray-500' : ''"
                         >
                             <div class="flex items-center gap-3">
                                 <div class="rounded-full bg-gray-100 p-2 dark:bg-gray-800">
-                                    <CircleDollarSign class="h-5 w-5" />
+                                    <CircleDollarSign class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                                 </div>
                                 <div>
-                                    <p class="font-medium">{{ wallet.currency_code }}</p>
-                                    <p class="text-sm text-gray-500">{{ wallet.formatted_balance }}</p>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ wallet.currency_code }}</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ wallet.formatted_balance }}</p>
                                 </div>
                             </div>
-                            <CheckCircle v-if="selectedSourceWallet?.id === wallet.id" class="h-5 w-5 text-blue-500" />
+                            <CheckCircle v-if="selectedSourceWallet?.id === wallet.id" class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                         </button>
                     </div>
                 </div>
@@ -506,16 +476,16 @@ onMounted(() => {
                 <div v-if="transferDetails" class="mb-6 rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
                     <div class="space-y-2">
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500">Recipient gets</span>
-                            <span class="font-semibold text-emerald-600">{{ formattedConvertedAmount || formattedTotal }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">Recipient gets</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">{{ formattedConvertedAmount || formattedTotal }}</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500">Fee ({{ transferDetails.fee_percentage }}%)</span>
-                            <span class="text-gray-700">{{ formattedFee }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">Fee ({{ transferDetails.fee_percentage }}%)</span>
+                            <span class="text-gray-700 dark:text-gray-300">{{ formattedFee }}</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2 text-base font-bold dark:border-gray-700">
-                            <span>Total to pay</span>
-                            <span class="text-blue-600">{{ formattedTotal }}</span>
+                            <span class="text-gray-900 dark:text-white">Total to pay</span>
+                            <span class="text-gray-900 dark:text-white">{{ formattedTotal }}</span>
                         </div>
                     </div>
                 </div>
@@ -523,7 +493,7 @@ onMounted(() => {
                 <button 
                     @click="createQuote"
                     :disabled="!canProceed || isLoading"
-                    class="h-14 w-full rounded-xl bg-blue-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                    class="h-14 w-full rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                 >
                     <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
                     <span v-else>Continue</span>
@@ -532,76 +502,66 @@ onMounted(() => {
 
             <!-- STEP 3: Confirm -->
             <div v-show="step === 3" class="animate-fadeIn">
-                <!-- Title -->
                 <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Confirm transfer</h2>
-                    <p class="mt-1 text-sm text-gray-500">Review details before sending</p>
-                </div>
-                
-                <!-- Rate Lock Timer -->
-                <div class="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
-                    <div class="flex items-center gap-2">
-                        <Clock class="h-4 w-4 text-amber-600" />
-                        <span class="text-sm text-amber-700 dark:text-amber-400">Rate locked for</span>
-                    </div>
-                    <span class="font-mono text-lg font-bold text-amber-700 dark:text-amber-400">{{ quoteExpiresIn }}s</span>
+                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">Confirm transfer</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Review details before sending</p>
                 </div>
                 
                 <!-- Transfer Details Card -->
-                <div class="mb-6 rounded-xl bg-white p-5 dark:bg-gray-900">
+                <div class="mb-6 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
                     <!-- Recipient -->
                     <div class="mb-4 flex items-center gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200 text-base font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                             {{ recipientInitials }}
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Recipient</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Recipient</p>
                             <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
-                            <p class="text-sm text-gray-500">{{ recipientData?.email }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ recipientData?.email }}</p>
                         </div>
                     </div>
                     
                     <div class="space-y-3">
                         <div class="flex justify-between">
-                            <span class="text-gray-500">From</span>
-                            <span class="font-medium">{{ selectedSourceWallet?.currency_code }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">From</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_code }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-500">Amount</span>
-                            <span class="font-medium">{{ selectedSourceWallet?.currency_symbol }}{{ amount?.toFixed(2) }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">Amount</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_symbol }}{{ amount?.toFixed(2) }}</span>
                         </div>
                         <div v-if="transferDetails?.is_cross_currency" class="flex justify-between">
-                            <span class="text-gray-500">Recipient gets</span>
-                            <span class="font-medium text-emerald-600">{{ formattedConvertedAmount }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">Recipient gets</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ formattedConvertedAmount }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-500">Fee</span>
-                            <span class="font-medium">{{ formattedFee }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">Fee</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ formattedFee }}</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-100 pt-3 text-lg font-bold dark:border-gray-800">
-                            <span>Total</span>
-                            <span class="text-blue-600">{{ formattedTotal }}</span>
+                            <span class="text-gray-900 dark:text-white">Total</span>
+                            <span class="text-gray-900 dark:text-white">{{ formattedTotal }}</span>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Warning -->
                 <div class="mb-6 flex items-center gap-2 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
-                    <Shield class="h-5 w-5 text-emerald-600" />
+                    <Shield class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     <span class="text-sm text-gray-600 dark:text-gray-400">This transfer cannot be reversed once confirmed</span>
                 </div>
 
                 <div class="flex gap-3">
                     <button 
                         @click="step = 2"
-                        class="h-14 flex-1 rounded-xl border border-gray-300 font-medium transition-all active:scale-95 dark:border-gray-700"
+                        class="h-14 flex-1 rounded-xl border border-gray-300 font-medium transition-all active:scale-95 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         Back
                     </button>
                     <button 
                         @click="executeTransfer"
-                        :disabled="isLoading || quoteExpiresIn === 0"
-                        class="h-14 flex-1 rounded-xl bg-emerald-600 font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                        :disabled="isLoading"
+                        class="h-14 flex-1 rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                     >
                         <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
                         <span v-else>Send {{ formattedTotal }}</span>
@@ -653,7 +613,6 @@ input[type="number"]::-webkit-outer-spin-button {
     opacity: 0.5;
 }
 
-/* Mobile touch optimizations */
 button, [role="button"] {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
