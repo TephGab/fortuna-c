@@ -9,7 +9,7 @@
             </div>
 
             <div class="space-y-4">
-                <!-- Currency selector -->
+                <!-- Currency selector with flags -->
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ t('Select currency') }}
@@ -25,7 +25,7 @@
                             :key="curr.code"
                             :value="curr.code"
                         >
-                            {{ curr.code }} – {{ curr.name }} ({{ curr.symbol }})
+                            {{ getFlagEmoji(curr.code) }} {{ curr.code }} – {{ curr.name }} ({{ curr.symbol }})
                         </option>
                     </select>
                 </div>
@@ -80,6 +80,18 @@ const selectedCurrency = ref('');
 const availableCurrencies = ref<any[]>([]);
 const loading = ref(false);
 const error = ref('');
+
+// Helper to get flag emoji from currency code (same mapping as dashboard)
+function getFlagEmoji(currencyCode: string): string {
+    const flags: Record<string, string> = {
+        USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵',
+        BRL: '🇧🇷', CAD: '🇨🇦', AUD: '🇦🇺', CHF: '🇨🇭',
+        CNY: '🇨🇳', INR: '🇮🇳', MXN: '🇲🇽', DOP: '🇩🇴',
+        HTG: '🇭🇹', KRW: '🇰🇷', SGD: '🇸🇬', HKD: '🇭🇰',
+        NZD: '🇳🇿', THB: '🇹🇭', VND: '🇻🇳', MYR: '🇲🇾',
+    };
+    return flags[currencyCode] || '🌐';
+}
 
 // Fetch available currencies when modal opens
 watch(() => props.isOpen, async (open) => {

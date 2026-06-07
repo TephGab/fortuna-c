@@ -345,7 +345,7 @@ onUnmounted(() => {
 <template>
     <Head :title="t('Secure Deposit | Credit/Debit Card')" />
 
-    <div class="h-full w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
+    <div class="h-full w-full overflow-hidden">
         <div class="mx-auto h-full max-w-7xl overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
             
             <!-- Header -->

@@ -3,19 +3,8 @@ import { Head } from '@inertiajs/vue3';
 import { dashboard } from '@/routes';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { 
-  Plus, 
-  Send, 
-  TrendingUp, 
-  Clock, 
-  ChevronRight,
-  ChevronLeft,
-  ArrowUpRight,
-  ArrowDownRight,
-  Eye,
-  EyeOff,
-  Landmark,
-  CreditCard,
-  DollarSign
+  Plus, Send, TrendingUp, Clock, ChevronRight, ChevronLeft,
+  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 import { useTranslation } from '@/composables/useTranslation';
@@ -96,7 +85,7 @@ const showBalance = ref(true);
 const scrollContainer = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(true);
-const showAddCurrencyModal = ref(false); // Modal visibility
+const showAddCurrencyModal = ref(false);
 
 const currencies = ref<CurrencyBalance[]>([]);
 const recentTransactions = ref<Transaction[]>([]);
@@ -108,50 +97,30 @@ const depositOptions = ref<DepositOption[]>([
 ]);
 
 // ==================== COMPUTED ====================
-const totalBalanceDisplay = computed(() => {
-  return props.totalBalance.toFixed(2);
-});
+const totalBalanceDisplay = computed(() => props.totalBalance.toFixed(2));
 
-const mainCurrency = computed(() => {
-  return {
-    symbol: props.mainCurrency?.symbol || '$',
-    code: props.mainCurrency?.code || 'USD',
-    formattedBalance: props.mainCurrency?.formatted_balance || `$${props.totalBalance.toFixed(2)}`
-  };
-});
+const mainCurrency = computed(() => ({
+  symbol: props.mainCurrency?.symbol || '$',
+  code: props.mainCurrency?.code || 'USD',
+  formattedBalance: props.mainCurrency?.formatted_balance || `$${props.totalBalance.toFixed(2)}`
+}));
 
 // ==================== METHODS ====================
-const toggleBalanceVisibility = () => {
-  showBalance.value = !showBalance.value;
-};
+const toggleBalanceVisibility = () => { showBalance.value = !showBalance.value; };
 
-const formatAmount = (amount: number, symbol: string) => {
-  return `${symbol} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+const formatAmount = (amount: number, symbol: string) => `${symbol} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatCompactAmount = (amount: number, symbol: string) => {
-  if (amount >= 1000) {
-    return `${symbol} ${(amount / 1000).toFixed(1)}k`;
-  }
+  if (amount >= 1000) return `${symbol} ${(amount / 1000).toFixed(1)}k`;
   return `${symbol} ${amount.toFixed(2)}`;
 };
 
-const getTransactionColor = (type: string) => {
-  return type === 'received' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-};
+const getTransactionColor = (type: string) => type === 'received' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+const getTransactionIcon = (type: string) => type === 'received' ? ArrowDownRight : ArrowUpRight;
 
-const getTransactionIcon = (type: string) => {
-  return type === 'received' ? ArrowDownRight : ArrowUpRight;
-};
+const openAddCurrencyModal = () => { showAddCurrencyModal.value = true; };
 
-// Open modal instead of direct navigation
-const openAddCurrencyModal = () => {
-  showAddCurrencyModal.value = true;
-};
-
-// Called when a new wallet is successfully added
 const onCurrencyAdded = (newWallet: any) => {
-  // Add the new wallet to the local `currencies` array so it appears immediately
   currencies.value.push({
     id: newWallet.id,
     code: newWallet.currency_code,
@@ -161,20 +130,14 @@ const onCurrencyAdded = (newWallet: any) => {
     flag: newWallet.currency_flag,
     isMain: false,
   });
-  // The scroll container will automatically include the new card.
 };
 
 const handleDeposit = (option: DepositOption) => {
-  if (option.id === 'card') {
-    router.visit('/deposits/card');
-  } else {
-    console.log('Deposit with:', option.nameKey);
-  }
+  if (option.id === 'card') router.visit('/deposits/card');
+  else console.log('Deposit with:', option.nameKey);
 };
 
-const goToDepositOptions = () => {
-  router.visit('/deposits');
-};
+const goToDepositOptions = () => router.visit('/deposits');
 
 // ==================== SCROLL HELPERS ====================
 const scroll = (direction: 'left' | 'right') => {
@@ -194,13 +157,19 @@ const checkScrollButtons = () => {
   }
 };
 
-const handleResize = () => {
-  checkScrollButtons();
-};
+const handleResize = () => { checkScrollButtons(); };
 
 // ==================== LIFECYCLE ====================
 onMounted(() => {
-  currencies.value = props.wallets.map(wallet => ({
+  // ★★★ SORT WALLETS: MAIN ACCOUNT FIRST, THEN ALPHABETICAL BY CURRENCY CODE ★★★
+  const sortedWallets = [...props.wallets].sort((a, b) => {
+    if (a.is_default) return -1;
+    if (b.is_default) return 1;
+    
+    return a.currency_code.localeCompare(b.currency_code);
+  });
+
+  currencies.value = sortedWallets.map(wallet => ({
     id: wallet.id,
     code: wallet.currency_code,
     symbol: wallet.currency_symbol,
@@ -209,7 +178,7 @@ onMounted(() => {
     flag: wallet.currency_flag,
     isMain: wallet.is_default,
   }));
-  
+
   recentTransactions.value = props.recentTransactions.map(tx => ({
     id: tx.id,
     name: tx.name,
@@ -217,18 +186,21 @@ onMounted(() => {
     type: tx.type as 'sent' | 'received',
     date: tx.date_display,
   }));
-  
+
   if (scrollContainer.value) {
     scrollContainer.value.addEventListener('scroll', checkScrollButtons);
     checkScrollButtons();
   }
+
   window.addEventListener('resize', handleResize);
+
 });
 
 onUnmounted(() => {
-  if (scrollContainer.value) {
-    scrollContainer.value.removeEventListener('scroll', checkScrollButtons);
+  if (scrollContainer.value){
+     scrollContainer.value.removeEventListener('scroll', checkScrollButtons);
   }
+
   window.removeEventListener('resize', handleResize);
 });
 </script>
