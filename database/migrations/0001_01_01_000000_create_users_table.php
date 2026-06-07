@@ -21,6 +21,7 @@ return new class extends Migration
             $table->ipAddress('registered_ip')->nullable();
             $table->foreignId('currency_id')->nullable()->constrained('currencies');
             $table->timestamp('email_verified_at')->nullable();
+            $table->string('preferred_locale', 2)->default('en');
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();

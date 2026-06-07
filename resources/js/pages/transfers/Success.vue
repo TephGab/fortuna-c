@@ -19,6 +19,9 @@ import {
     Shield,
     ExternalLink
 } from 'lucide-vue-next';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 // ==================== PROPS ====================
 const props = defineProps<{
@@ -82,27 +85,27 @@ const goToDashboard = () => {
 const copyToClipboard = async () => {
     const text = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 TRANSACTION RECEIPT
+💰 ${t('TRANSACTION RECEIPT')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Transaction ID: ${props.reference}
-Date: ${formattedDate.value}
-Status: ${props.status}
+${t('Transaction ID')}: ${props.reference}
+${t('Date & Time')}: ${formattedDate.value}
+${t('Status')}: ${props.status}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 DETAILS
+📊 ${t('DETAILS')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Amount: ${formattedAmount.value}
-Fee: ${formattedFee.value}
-${props.type === 'transfer' ? `Recipient: ${props.recipient_name} (${props.recipient_email})` : ''}
-${props.type === 'transfer' && props.recipient_amount ? `Recipient receives: ${formattedRecipientAmount.value}` : ''}
+${t('Amount')}: ${formattedAmount.value}
+${t('Fee')}: ${formattedFee.value}
+${props.type === 'transfer' ? `${t('Recipient')}: ${props.recipient_name} (${props.recipient_email})` : ''}
+${props.type === 'transfer' && props.recipient_amount ? `${t('Recipient receives')}: ${formattedRecipientAmount.value}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Transaction completed successfully
+✅ ${t('Transaction completed successfully')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Thank you for using Fortuna!
+${t('Thank you for using Fortuna!')}
     `.trim();
     
     await navigator.clipboard.writeText(text);
@@ -120,7 +123,7 @@ const downloadReceipt = () => {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Transaction Receipt - ${props.reference}</title>
+    <title>${t('Transaction Receipt')} - ${props.reference}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -234,46 +237,46 @@ const downloadReceipt = () => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
             </div>
-            <h1>${props.type === 'transfer' ? 'Transfer Complete!' : 'Deposit Successful!'}</h1>
+            <h1>${props.type === 'transfer' ? t('Transfer Complete!') : t('Deposit Successful!')}</h1>
             <span class="status">${props.status}</span>
         </div>
         
         <div class="content">
             <div class="section">
-                <div class="section-title">Transaction Details</div>
+                <div class="section-title">${t('Transaction Details')}</div>
                 <div class="row">
-                    <span class="label">Transaction ID</span>
+                    <span class="label">${t('Transaction ID')}</span>
                     <span class="value">${props.reference}</span>
                 </div>
                 <div class="row">
-                    <span class="label">Date & Time</span>
+                    <span class="label">${t('Date & Time')}</span>
                     <span class="value">${formattedDate.value}</span>
                 </div>
             </div>
             
             <div class="section">
-                <div class="section-title">Payment Details</div>
+                <div class="section-title">${t('Payment Details')}</div>
                 <div class="row">
-                    <span class="label">Amount</span>
+                    <span class="label">${t('Amount')}</span>
                     <span class="value amount">${formattedAmount.value}</span>
                 </div>
                 <div class="row">
-                    <span class="label">Fee</span>
+                    <span class="label">${t('Fee')}</span>
                     <span class="value">${formattedFee.value}</span>
                 </div>
                 ${props.type === 'transfer' ? `
                 <div class="row">
-                    <span class="label">Recipient</span>
+                    <span class="label">${t('Recipient')}</span>
                     <span class="value">${props.recipient_name}</span>
                 </div>
                 <div class="row">
-                    <span class="label">Recipient Email</span>
+                    <span class="label">${t('Recipient Email')}</span>
                     <span class="value">${props.recipient_email}</span>
                 </div>
                 ` : ''}
                 ${props.type === 'transfer' && props.recipient_amount ? `
                 <div class="row">
-                    <span class="label">Recipient Receives</span>
+                    <span class="label">${t('Recipient Receives')}</span>
                     <span class="value">${formattedRecipientAmount.value}</span>
                 </div>
                 ` : ''}
@@ -281,9 +284,9 @@ const downloadReceipt = () => {
         </div>
         
         <div class="footer">
-            <p>Thank you for using Fortuna</p>
-            <p>This is an electronic receipt - no signature required</p>
-            <p>Reference: ${props.reference}</p>
+            <p>${t('Thank you for using Fortuna')}</p>
+            <p>${t('This is an electronic receipt - no signature required')}</p>
+            <p>${t('Reference')}: ${props.reference}</p>
         </div>
     </div>
 </body>
@@ -304,12 +307,12 @@ const downloadReceipt = () => {
  * Share receipt (Web Share API)
  */
 const shareReceipt = async () => {
-    const text = `Transaction ${props.reference} completed successfully. Amount: ${formattedAmount.value}`;
+    const text = `${t('Transaction')} ${props.reference} ${t('completed successfully. Amount')}: ${formattedAmount.value}`;
     
     if (navigator.share) {
         try {
             await navigator.share({
-                title: 'Transaction Receipt',
+                title: t('Transaction Receipt'),
                 text: text,
                 url: window.location.href,
             });
@@ -320,7 +323,7 @@ const shareReceipt = async () => {
     } else {
         // Fallback - copy to clipboard
         await copyToClipboard();
-        alert('Receipt copied to clipboard!');
+        alert(t('Receipt copied to clipboard!'));
     }
 };
 
@@ -335,18 +338,18 @@ const printReceipt = () => {
  * Email receipt
  */
 const emailReceipt = () => {
-    const subject = `Transaction Receipt - ${props.reference}`;
+    const subject = `${t('Transaction Receipt')} - ${props.reference}`;
     const body = `
-Transaction Receipt
+${t('Transaction Receipt')}
 ------------------
-Reference: ${props.reference}
-Date: ${formattedDate.value}
-Amount: ${formattedAmount.value}
-Fee: ${formattedFee.value}
-${props.type === 'transfer' ? `Recipient: ${props.recipient_name} (${props.recipient_email})` : ''}
-Status: ${props.status}
+${t('Reference')}: ${props.reference}
+${t('Date & Time')}: ${formattedDate.value}
+${t('Amount')}: ${formattedAmount.value}
+${t('Fee')}: ${formattedFee.value}
+${props.type === 'transfer' ? `${t('Recipient')}: ${props.recipient_name} (${props.recipient_email})` : ''}
+${t('Status')}: ${props.status}
 
-Thank you for using Fortuna!
+${t('Thank you for using Fortuna!')}
     `.trim();
     
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -375,7 +378,7 @@ const makeAnotherDeposit = () => {
 </script>
 
 <template>
-    <Head title="Transaction Successful" />
+    <Head :title="t('Transaction Successful')" />
 
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
         <div class="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
@@ -390,33 +393,33 @@ const makeAnotherDeposit = () => {
                 
                 <!-- Title -->
                 <h1 class="mb-2 text-center text-2xl font-bold text-gray-900 dark:text-white">
-                    {{ type === 'transfer' ? 'Transfer Complete!' : 'Deposit Successful!' }}
+                    {{ type === 'transfer' ? t('Transfer Complete!') : t('Deposit Successful!') }}
                 </h1>
                 <p class="mb-6 text-center text-gray-500 dark:text-gray-400">
-                    Your transaction has been processed successfully
+                    {{ t('Your transaction has been processed successfully') }}
                 </p>
                 
                 <!-- Amount Highlight -->
                 <div class="mb-6 rounded-xl bg-gray-50 p-4 text-center dark:bg-gray-800">
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Amount</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('Amount') }}</p>
                     <p class="text-3xl font-bold text-gray-900 dark:text-white">
                         {{ formattedAmount }}
                     </p>
                     <p v-if="type === 'transfer' && recipient_amount" class="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
-                        Recipient receives: {{ formattedRecipientAmount }}
+                        {{ t('Recipient receives') }}: {{ formattedRecipientAmount }}
                     </p>
                 </div>
                 
                 <!-- Transaction Details -->
                 <div class="mb-6 space-y-3 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">Transaction ID</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('Transaction ID') }}</span>
                         <div class="flex items-center gap-2">
                             <span class="font-mono text-xs text-gray-900 dark:text-white">{{ transactionId.slice(0, 20) }}...</span>
                             <button 
                                 @click="copyToClipboard"
                                 class="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800"
-                                title="Copy full ID"
+                                :title="t('Copy full ID')"
                             >
                                 <Copy v-if="!copied" class="h-4 w-4 text-gray-400" />
                                 <Check v-else class="h-4 w-4 text-emerald-600" />
@@ -425,24 +428,24 @@ const makeAnotherDeposit = () => {
                     </div>
                     
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">Date & Time</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('Date & Time') }}</span>
                         <span class="text-sm text-gray-900 dark:text-white">{{ formattedDate }}</span>
                     </div>
                     
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">Fee</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('Fee') }}</span>
                         <span class="text-sm text-gray-900 dark:text-white">{{ formattedFee }}</span>
                     </div>
                     
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">Status</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('Status') }}</span>
                         <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                             {{ status }}
                         </span>
                     </div>
                     
                     <div v-if="type === 'transfer'" class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">Recipient</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('Recipient') }}</span>
                         <div class="text-right">
                             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ recipient_name }}</p>
                             <p class="text-xs text-gray-500">{{ recipient_email }}</p>
@@ -457,7 +460,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Download class="h-4 w-4" />
-                        Download Receipt
+                        {{ t('Download Receipt') }}
                     </button>
                     
                     <button 
@@ -465,7 +468,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Share2 class="h-4 w-4" />
-                        Share Receipt
+                        {{ t('Share Receipt') }}
                     </button>
                     
                     <button 
@@ -473,7 +476,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Printer class="h-4 w-4" />
-                        Print
+                        {{ t('Print') }}
                     </button>
                     
                     <button 
@@ -481,7 +484,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Mail class="h-4 w-4" />
-                        Email Receipt
+                        {{ t('Email Receipt') }}
                     </button>
                 </div>
                 
@@ -491,7 +494,7 @@ const makeAnotherDeposit = () => {
                         <div class="w-full border-t border-gray-200 dark:border-gray-800"></div>
                     </div>
                     <div class="relative flex justify-center text-xs">
-                        <span class="bg-white px-2 text-gray-500 dark:bg-gray-900 dark:text-gray-400">What would you like to do next?</span>
+                        <span class="bg-white px-2 text-gray-500 dark:bg-gray-900 dark:text-gray-400">{{ t('What would you like to do next?') }}</span>
                     </div>
                 </div>
                 
@@ -502,7 +505,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 font-medium text-white transition-all hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600"
                     >
                         <Home class="h-5 w-5" />
-                        Go to Dashboard
+                        {{ t('Go to Dashboard') }}
                     </button>
                     
                     <button 
@@ -510,7 +513,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-3 font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Receipt class="h-5 w-5" />
-                        View Transaction
+                        {{ t('View Transaction') }}
                     </button>
                     
                     <button 
@@ -519,7 +522,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-3 font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <TrendingUp class="h-5 w-5" />
-                        Send Again
+                        {{ t('Send Again') }}
                     </button>
                     
                     <button 
@@ -528,7 +531,7 @@ const makeAnotherDeposit = () => {
                         class="flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-3 font-medium transition-all hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
                         <Wallet class="h-5 w-5" />
-                        Add More Funds
+                        {{ t('Add More Funds') }}
                     </button>
                 </div>
                 
@@ -536,7 +539,7 @@ const makeAnotherDeposit = () => {
                 <div class="mt-6 text-center">
                     <div class="inline-flex items-center gap-2 text-xs text-gray-400">
                         <Shield class="h-3 w-3" />
-                        <span>This transaction is secured and verified</span>
+                        <span>{{ t('This transaction is secured and verified') }}</span>
                     </div>
                 </div>
             </div>

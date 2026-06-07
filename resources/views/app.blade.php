@@ -5,6 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
+        <!-- Prevent Google Translate prompt -->
+        <meta name="google" content="notranslate">
+
+        <!-- Additional meta for other browsers -->
+        <meta name="robots" content="noarchive, notranslate">
+
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
@@ -42,7 +48,7 @@
             <title>{{ config('app.name', 'Laravel') }}</title>
         </x-inertia::head>
     </head>
-    <body class="font-sans antialiased">
+    <body class="font-sans antialiased" translate="no">
         <x-inertia::app />
     </body>
 </html>

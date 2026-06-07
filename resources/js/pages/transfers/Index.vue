@@ -25,6 +25,9 @@ import {
     X,
     TrendingUp
 } from 'lucide-vue-next';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 // ==================== PROPS ====================
 const props = defineProps<{
@@ -143,7 +146,7 @@ const handleTouchEnd = (e: TouchEvent) => {
 
 const findRecipient = async () => {
     if (!recipientEmail.value) {
-        error.value = 'Please enter an email address';
+        error.value = t('Please enter an email address');
         return;
     }
     
@@ -163,7 +166,7 @@ const findRecipient = async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.error || 'Recipient not found');
+            throw new Error(data.error || t('Recipient not found'));
         }
         
         recipientData.value = data;
@@ -205,7 +208,7 @@ const calculateTransfer = async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.error || 'Failed to calculate transfer');
+            throw new Error(data.error || t('Failed to calculate transfer'));
         }
         
         transferDetails.value = data;
@@ -241,7 +244,7 @@ const createQuote = async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.error || 'Failed to create quote');
+            throw new Error(data.error || t('Failed to create quote'));
         }
         
         quoteId.value = data.quote_id;
@@ -273,7 +276,7 @@ const executeTransfer = async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.error || 'Transfer failed');
+            throw new Error(data.error || t('Transfer failed'));
         }
         
         if (data.redirect_url) {
@@ -317,7 +320,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Send Money" />
+    <Head :title="t('Send Money')" />
 
     <div class="send-money-container min-h-screen bg-gray-50 dark:bg-gray-950">
         
@@ -330,7 +333,7 @@ onMounted(() => {
                 >
                     <ArrowLeft class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </button>
-                <h1 class="text-lg font-semibold text-gray-900 dark:text-white">Send Money</h1>
+                <h1 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Send Money') }}</h1>
                 <div class="w-10"></div>
             </div>
             
@@ -351,8 +354,8 @@ onMounted(() => {
             <!-- STEP 1: Recipient -->
             <div v-show="step === 1" class="animate-fadeIn">
                 <div class="mb-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Who are you sending to?</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter their email address</p>
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('Who are you sending to?') }}</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Enter their email address') }}</p>
                 </div>
                 
                 <div class="mb-6">
@@ -362,7 +365,7 @@ onMounted(() => {
                             v-model="recipientEmail"
                             type="email"
                             class="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-lg focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-gray-500/20"
-                            placeholder="friend@example.com"
+                            :placeholder="t('friend@example.com')"
                             @keyup.enter="findRecipient"
                         />
                     </div>
@@ -374,11 +377,11 @@ onMounted(() => {
                     class="mb-8 h-14 w-full rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                 >
                     <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                    <span v-else>Continue</span>
+                    <span v-else>{{ t('Continue') }}</span>
                 </button>
 
                 <div v-if="recentRecipients.length > 0">
-                    <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">Recent</p>
+                    <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">{{ t('Recent') }}</p>
                     <div class="space-y-2">
                         <button
                             v-for="recip in recentRecipients"
@@ -402,8 +405,8 @@ onMounted(() => {
             <!-- STEP 2: Amount -->
             <div v-show="step === 2" class="animate-fadeIn">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">How much?</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter the amount to send</p>
+                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">{{ t('How much?') }}</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Enter the amount to send') }}</p>
                 </div>
                 
                 <!-- Recipient Summary -->
@@ -413,11 +416,11 @@ onMounted(() => {
                             <User class="h-5 w-5" />
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Sending to</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('Sending to') }}</p>
                             <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
                         </div>
                     </div>
-                    <button @click="step = 1" class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">Change</button>
+                    <button @click="step = 1" class="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">{{ t('Change') }}</button>
                 </div>
                 
                 <!-- Amount Input -->
@@ -432,7 +435,7 @@ onMounted(() => {
                             step="0.01"
                             min="1"
                             class="h-16 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-2xl font-semibold focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                            placeholder="0"
+                            :placeholder="t('0')"
                         />
                     </div>
                     <div class="mt-3 flex gap-2">
@@ -449,7 +452,7 @@ onMounted(() => {
 
                 <!-- From Wallet -->
                 <div class="mb-4">
-                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">From</p>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">{{ t('From') }}</p>
                     <div class="space-y-2">
                         <button
                             v-for="wallet in sourceWallets"
@@ -476,15 +479,15 @@ onMounted(() => {
                 <div v-if="transferDetails" class="mb-6 rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
                     <div class="space-y-2">
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500 dark:text-gray-400">Recipient gets</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('Recipient gets') }}</span>
                             <span class="font-semibold text-gray-900 dark:text-white">{{ formattedConvertedAmount || formattedTotal }}</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500 dark:text-gray-400">Fee ({{ transferDetails.fee_percentage }}%)</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('Fee') }} ({{ transferDetails.fee_percentage }}%)</span>
                             <span class="text-gray-700 dark:text-gray-300">{{ formattedFee }}</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2 text-base font-bold dark:border-gray-700">
-                            <span class="text-gray-900 dark:text-white">Total to pay</span>
+                            <span class="text-gray-900 dark:text-white">{{ t('Total to pay') }}</span>
                             <span class="text-gray-900 dark:text-white">{{ formattedTotal }}</span>
                         </div>
                     </div>
@@ -496,15 +499,15 @@ onMounted(() => {
                     class="h-14 w-full rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                 >
                     <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                    <span v-else>Continue</span>
+                    <span v-else>{{ t('Continue') }}</span>
                 </button>
             </div>
 
             <!-- STEP 3: Confirm -->
             <div v-show="step === 3" class="animate-fadeIn">
                 <div class="mb-6">
-                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">Confirm transfer</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Review details before sending</p>
+                    <h2 class="text-xl font-bold text-gray-500 dark:text-gray-400">{{ t('Confirm transfer') }}</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Review details before sending') }}</p>
                 </div>
                 
                 <!-- Transfer Details Card -->
@@ -515,7 +518,7 @@ onMounted(() => {
                             {{ recipientInitials }}
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Recipient</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('Recipient') }}</p>
                             <p class="font-semibold text-gray-900 dark:text-white">{{ recipientData?.name }}</p>
                             <p class="text-sm text-gray-500 dark:text-gray-400">{{ recipientData?.email }}</p>
                         </div>
@@ -523,23 +526,23 @@ onMounted(() => {
                     
                     <div class="space-y-3">
                         <div class="flex justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">From</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('From') }}</span>
                             <span class="font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_code }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Amount</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('Amount') }}</span>
                             <span class="font-medium text-gray-900 dark:text-white">{{ selectedSourceWallet?.currency_symbol }}{{ amount?.toFixed(2) }}</span>
                         </div>
                         <div v-if="transferDetails?.is_cross_currency" class="flex justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Recipient gets</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('Recipient gets') }}</span>
                             <span class="font-medium text-gray-900 dark:text-white">{{ formattedConvertedAmount }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Fee</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('Fee') }}</span>
                             <span class="font-medium text-gray-900 dark:text-white">{{ formattedFee }}</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-100 pt-3 text-lg font-bold dark:border-gray-800">
-                            <span class="text-gray-900 dark:text-white">Total</span>
+                            <span class="text-gray-900 dark:text-white">{{ t('Total') }}</span>
                             <span class="text-gray-900 dark:text-white">{{ formattedTotal }}</span>
                         </div>
                     </div>
@@ -548,7 +551,7 @@ onMounted(() => {
                 <!-- Warning -->
                 <div class="mb-6 flex items-center gap-2 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
                     <Shield class="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    <span class="text-sm text-gray-600 dark:text-gray-400">This transfer cannot be reversed once confirmed</span>
+                    <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('This transfer cannot be reversed once confirmed') }}</span>
                 </div>
 
                 <div class="flex gap-3">
@@ -556,7 +559,7 @@ onMounted(() => {
                         @click="step = 2"
                         class="h-14 flex-1 rounded-xl border border-gray-300 font-medium transition-all active:scale-95 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                     >
-                        Back
+                        {{ t('Back') }}
                     </button>
                     <button 
                         @click="executeTransfer"
@@ -564,7 +567,7 @@ onMounted(() => {
                         class="h-14 flex-1 rounded-xl bg-gray-900 font-semibold text-white transition-all active:scale-95 hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
                     >
                         <Loader2 v-if="isLoading" class="mx-auto h-5 w-5 animate-spin" />
-                        <span v-else>Send {{ formattedTotal }}</span>
+                        <span v-else>{{ t('Send') }} {{ formattedTotal }}</span>
                     </button>
                 </div>
             </div>
@@ -582,7 +585,7 @@ onMounted(() => {
             
             <!-- Swipe Hint -->
             <div v-if="step < 3 && step === 1 && !recipientData" class="mt-6 text-center">
-                <p class="text-xs text-gray-400">← Swipe back • Continue →</p>
+                <p class="text-xs text-gray-400">← {{ t('Swipe back') }} • {{ t('Continue') }} →</p>
             </div>
         </div>
     </div>

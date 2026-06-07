@@ -27,6 +27,9 @@ import {
     X
 } from 'lucide-vue-next';
 import { loadStripe } from '@stripe/stripe-js';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 // ==================== CONFIGURATION ====================
 
@@ -96,7 +99,7 @@ const isFormValid = computed(() => {
 
 const cardDetails = computed(() => {
     if (!cardType.value) {
-        return { gradient: 'from-gray-700 to-gray-900', displayName: 'Card' };
+        return { gradient: 'from-gray-700 to-gray-900', displayName: t('Card') };
     }
     const key = cardType.value.toLowerCase();
     return CARD_STYLES[key] || { gradient: 'from-gray-700 to-gray-900', displayName: cardType.value };
@@ -128,7 +131,7 @@ const formatCurrency = (value: number): string => {
 const initializeStripe = async () => {
     try {
         if (!STRIPE_PUBLISHABLE_KEY) {
-            error.value = 'Payment system configuration error.';
+            error.value = t('Payment system configuration error.');
             console.error('Stripe key missing');
             return;
         }
@@ -213,23 +216,23 @@ const initializeStripe = async () => {
         
     } catch (err) {
         console.error('Stripe init failed:', err);
-        error.value = 'Payment system unavailable. Please refresh.';
+        error.value = t('Payment system unavailable. Please refresh.');
     }
 };
 
 const handleDeposit = async () => {
     if (!amount.value || amount.value < 10) {
-        error.value = 'Minimum deposit amount is $10';
+        error.value = t('Minimum deposit amount is $10');
         return;
     }
     
     if (amount.value > 5000) {
-        error.value = 'Maximum deposit amount is $5,000';
+        error.value = t('Maximum deposit amount is $5,000');
         return;
     }
     
     if (!stripe || !cardNumberElement) {
-        error.value = 'Payment system not ready. Please refresh.';
+        error.value = t('Payment system not ready. Please refresh.');
         return;
     }
     
@@ -250,7 +253,7 @@ const handleDeposit = async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.message || 'Failed to create payment');
+            throw new Error(data.message || t('Failed to create payment'));
         }
         
         // Confirm payment with Stripe
@@ -285,13 +288,13 @@ const handleDeposit = async () => {
                 // Redirect to success page with amount
                 router.visit(`/deposits/success?amount=${amount.value}&session_id=${paymentIntent.id}`);
             } else {
-                throw new Error('Failed to update wallet. Please contact support.');
+                throw new Error(t('Failed to update wallet. Please contact support.'));
             }
         }
         
     } catch (err: any) {
         console.error('Payment failed:', err);
-        error.value = err.message || 'Payment failed. Please try again.';
+        error.value = err.message || t('Payment failed. Please try again.');
         isProcessing.value = false;
     }
 };
@@ -310,7 +313,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Secure Deposit | Credit/Debit Card" />
+    <Head :title="t('Secure Deposit | Credit/Debit Card')" />
 
     <div class="h-full w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
         <div class="mx-auto h-full max-w-7xl overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
@@ -325,8 +328,8 @@ onUnmounted(() => {
                     <ArrowLeft class="h-5 w-5" />
                 </button>
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Add Funds</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Secure deposit via credit or debit card</p>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('Add Funds') }}</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('Secure deposit via credit or debit card') }}</p>
                 </div>
             </div>
 
@@ -338,7 +341,7 @@ onUnmounted(() => {
                     
                     <!-- Amount Card -->
                     <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Deposit Amount</label>
+                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Deposit Amount') }}</label>
                         
                         <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-semibold text-gray-400">$</span>
@@ -364,9 +367,9 @@ onUnmounted(() => {
                         </div>
                         
                         <div class="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
-                            <div class="flex items-center gap-1"><AlertCircle class="h-3 w-3" /> Min: $10</div>
-                            <div class="flex items-center gap-1"><AlertCircle class="h-3 w-3" /> Max: $5,000</div>
-                            <div class="flex items-center gap-1"><Zap class="h-3 w-3" /> Instant</div>
+                            <div class="flex items-center gap-1"><AlertCircle class="h-3 w-3" /> {{ t('Min: $10') }}</div>
+                            <div class="flex items-center gap-1"><AlertCircle class="h-3 w-3" /> {{ t('Max: $5,000') }}</div>
+                            <div class="flex items-center gap-1"><Zap class="h-3 w-3" /> {{ t('Instant') }}</div>
                         </div>
                     </div>
 
@@ -390,11 +393,11 @@ onUnmounted(() => {
                         
                         <div class="mt-4 flex justify-between">
                             <div>
-                                <p class="text-xs opacity-70">Cardholder</p>
-                                <p class="text-sm font-medium uppercase tracking-wide">YOUR NAME</p>
+                                <p class="text-xs opacity-70">{{ t('Cardholder') }}</p>
+                                <p class="text-sm font-medium uppercase tracking-wide">{{ t('YOUR NAME') }}</p>
                             </div>
                             <div>
-                                <p class="text-xs opacity-70">Expires</p>
+                                <p class="text-xs opacity-70">{{ t('Expires') }}</p>
                                 <p class="text-sm font-medium">{{ cardExpiryComplete ? '**/**' : 'MM/YY' }}</p>
                             </div>
                         </div>
@@ -403,33 +406,33 @@ onUnmounted(() => {
                     <!-- Card Info Form -->
                     <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div class="mb-4 flex items-center justify-between">
-                            <h3 class="font-semibold text-gray-900 dark:text-white">Card Information</h3>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ t('Card Information') }}</h3>
                             <Fingerprint class="h-5 w-5 text-gray-400" />
                         </div>
                         
                         <div class="space-y-4">
                             <div>
-                                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Card Number</label>
+                                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Card Number') }}</label>
                                 <div ref="cardNumberRef" class="rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"></div>
                                 <div v-if="cardType && !cardNumberComplete" class="mt-1 text-right text-xs text-emerald-600 dark:text-emerald-400">
-                                    ✓ {{ cardTypeName }} detected
+                                    ✓ {{ cardTypeName }} {{ t('detected') }}
                                 </div>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
+                                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Expiry Date') }}</label>
                                     <div ref="cardExpiryRef" class="rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"></div>
                                 </div>
                                 <div>
-                                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">CVC / CVV</label>
+                                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('CVC / CVV') }}</label>
                                     <div ref="cardCvcRef" class="rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"></div>
                                 </div>
                             </div>
                             
                             <div class="flex items-center justify-center gap-1 text-xs text-gray-400">
                                 <Lock class="h-3 w-3" />
-                                <span>Your card info is encrypted</span>
+                                <span>{{ t('Your card info is encrypted') }}</span>
                             </div>
                         </div>
                     </div>
@@ -453,7 +456,7 @@ onUnmounted(() => {
                     >
                         <Loader2 v-if="isProcessing" class="h-5 w-5 animate-spin" />
                         <Zap v-else class="h-5 w-5" />
-                        {{ isProcessing ? 'Processing...' : `Deposit ${formattedAmount}` }}
+                        {{ isProcessing ? t('Processing...') : `${t('Deposit')} ${formattedAmount}` }}
                     </button>
                 </div>
                 
@@ -463,21 +466,21 @@ onUnmounted(() => {
                     <div class="sticky top-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <h3 class="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
                             <Wallet class="h-5 w-5" />
-                            Payment Summary
+                            {{ t('Payment Summary') }}
                         </h3>
                         
                         <div class="space-y-3">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600 dark:text-gray-400">Deposit amount</span>
+                                <span class="text-gray-600 dark:text-gray-400">{{ t('Deposit amount') }}</span>
                                 <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(amount || 0) }}</span>
                             </div>
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600 dark:text-gray-400">Processing fee (2.9%)</span>
+                                <span class="text-gray-600 dark:text-gray-400">{{ t('Processing fee') }} (2.9%)</span>
                                 <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(feeAmount) }}</span>
                             </div>
                             <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
                                 <div class="flex justify-between font-semibold">
-                                    <span class="text-gray-900 dark:text-white">Total charged</span>
+                                    <span class="text-gray-900 dark:text-white">{{ t('Total charged') }}</span>
                                     <span class="text-emerald-600 dark:text-emerald-400">{{ formatCurrency(totalAmount) }}</span>
                                 </div>
                             </div>
@@ -487,7 +490,7 @@ onUnmounted(() => {
                     <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <h3 class="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
                             <Sparkles class="h-5 w-5" />
-                            Why deposit with us?
+                            {{ t('Why deposit with us?') }}
                         </h3>
                         
                         <div class="space-y-3">
@@ -496,8 +499,8 @@ onUnmounted(() => {
                                     <Zap class="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white">Instant deposits</p>
-                                    <p class="text-xs text-gray-500">Funds available immediately</p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('Instant deposits') }}</p>
+                                    <p class="text-xs text-gray-500">{{ t('Funds available immediately') }}</p>
                                 </div>
                             </div>
                             <div class="flex items-start gap-3">
@@ -505,8 +508,8 @@ onUnmounted(() => {
                                     <Shield class="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white">Bank-level security</p>
-                                    <p class="text-xs text-gray-500">PCI DSS Level 1 compliant</p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('Bank-level security') }}</p>
+                                    <p class="text-xs text-gray-500">{{ t('PCI DSS Level 1 compliant') }}</p>
                                 </div>
                             </div>
                             <div class="flex items-start gap-3">
@@ -514,8 +517,8 @@ onUnmounted(() => {
                                     <Smartphone class="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white">Mobile optimized</p>
-                                    <p class="text-xs text-gray-500">Seamless on all devices</p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('Mobile optimized') }}</p>
+                                    <p class="text-xs text-gray-500">{{ t('Seamless on all devices') }}</p>
                                 </div>
                             </div>
                         </div>

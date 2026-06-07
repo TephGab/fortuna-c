@@ -2,12 +2,19 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\TransferController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 
+// Guest language switch (no login required)
+Route::get('/locale/{locale}', [LocaleController::class, 'setGuestLocale'])->name('locale.set');
+
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Authenticated language switch
+    Route::post('/locale/switch', [LocaleController::class, 'switch'])->name('locale.switch');
+
     //Route::inertia('dashboard', 'Dashboard')->name('dashboard');
     // Dashboard route (Inertia view)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

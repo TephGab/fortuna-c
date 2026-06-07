@@ -11,6 +11,9 @@ import {
     Wallet, 
     Building2 
 } from 'lucide-vue-next';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const depositMethods = [
     {
@@ -96,7 +99,7 @@ const selectMethod = (methodId: string) => {
 </script>
 
 <template>
-    <Head title="Add Money" />
+    <Head :title="t('Add Money')" />
 
     <div class="flex h-full flex-1 flex-col overflow-y-auto p-4 sm:p-6">
 
@@ -109,8 +112,8 @@ const selectMethod = (methodId: string) => {
                 <ArrowLeft class="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </button>
             <div>
-                <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Add Money</h1>
-                <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Choose how you'd like to deposit funds</p>
+                <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ t('Add Money') }}</h1>
+                <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('Choose how you would like to deposit funds') }}</p>
             </div>
         </div>
 
@@ -163,7 +166,7 @@ const selectMethod = (methodId: string) => {
 
         <!-- Footer note -->
         <p class="mt-6 text-center text-xs text-gray-400 dark:text-gray-600">
-            All transactions are encrypted and secure
+            {{ t('All transactions are encrypted and secure') }}
         </p>
     </div>
 </template>

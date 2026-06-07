@@ -18,9 +18,11 @@ import {
   DollarSign
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 // ==================== PROPS ====================
-// Updated to match backend response
 const props = defineProps<{
     wallets: Array<{
         id: number;
@@ -54,7 +56,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Dashboard',
+               title: 'Dashboard',
                 href: dashboard(),
             },
         ],
@@ -82,10 +84,10 @@ interface Transaction {
 
 interface DepositOption {
   id: string;
-  name: string;
+  nameKey: string;
   icon: any;
-  fee: string;
-  time: string;
+  feeKey: string;
+  timeKey: string;
 }
 
 // ==================== STATE MANAGEMENT ====================
@@ -94,20 +96,16 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(true);
 
-// Transform wallets data from props to component format
 const currencies = ref<CurrencyBalance[]>([]);
-
-// Transform transactions from props to component format
 const recentTransactions = ref<Transaction[]>([]);
 
-// Deposit options
 const depositOptions = ref<DepositOption[]>([
-  { id: 'bank', name: 'Bank Transfer', icon: Landmark, fee: 'Free', time: '1-3 days' },
-  { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, fee: '2.9%', time: 'Instant' },
-  { id: 'wire', name: 'Wire Transfer', icon: Send, fee: '$15', time: 'Same day' },
+  { id: 'bank', nameKey: 'Bank Transfer', icon: Landmark, feeKey: 'Free', timeKey: '1-3 days' },
+  { id: 'card', nameKey: 'Credit/Debit Card', icon: CreditCard, feeKey: '2.9%', timeKey: 'Instant' },
+  { id: 'wire', nameKey: 'Wire Transfer', icon: Send, feeKey: '$15', timeKey: 'Same day' },
 ]);
 
-// ==================== COMPUTED PROPERTIES ====================
+// ==================== COMPUTED ====================
 const totalBalanceDisplay = computed(() => {
   return props.totalBalance.toFixed(2);
 });
@@ -152,7 +150,7 @@ const handleDeposit = (option: DepositOption) => {
   if (option.id === 'card') {
     router.visit('/deposits/card');
   } else {
-    console.log('Deposit with:', option.name);
+    console.log('Deposit with:', option.nameKey);
   }
 };
 
@@ -182,9 +180,7 @@ const handleResize = () => {
   checkScrollButtons();
 };
 
-// Process real data on mount
 onMounted(() => {
-  // Transform wallets data
   currencies.value = props.wallets.map(wallet => ({
     id: wallet.id,
     code: wallet.currency_code,
@@ -195,7 +191,6 @@ onMounted(() => {
     isMain: wallet.is_default,
   }));
   
-  // Transform transactions data - use pre-formatted values from backend
   recentTransactions.value = props.recentTransactions.map(tx => ({
     id: tx.id,
     name: tx.name,
@@ -204,7 +199,6 @@ onMounted(() => {
     date: tx.date_display,
   }));
   
-  // Set up scroll listeners
   if (scrollContainer.value) {
     scrollContainer.value.addEventListener('scroll', checkScrollButtons);
     checkScrollButtons();
@@ -221,16 +215,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head :title="t('Dashboard')" />
 
     <div class="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-4">
 
-        <!-- =====================================================
-             HEADER SECTION
-        ====================================================== -->
         <div class="mb-2">
 
-            <!-- Top row: Earn badge + Add currency button -->
+            <!-- Top row -->
             <div class="mb-6 flex items-center justify-between">
                 <div class="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 dark:bg-emerald-900/20">
                     <TrendingUp class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -241,13 +232,13 @@ onUnmounted(() => {
                     class="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                     <Plus class="h-4 w-4" />
-                    <span>Add currency</span>
+                    <span>{{ t('Add currency') }}</span>
                 </button>
             </div>
 
-            <!-- Total balance + visibility toggle -->
+            <!-- Total balance -->
             <div class="mb-6">
-                <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">Total balance</p>
+                <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Total balance') }}</p>
                 <div class="flex items-center gap-3">
                     <h1 class="truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
                         {{ showBalance ? mainCurrency.formattedBalance : '••••••' }}
@@ -262,29 +253,27 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Quick action buttons -->
+            <!-- Quick actions -->
             <div class="grid grid-cols-3 gap-4">
                 <button @click="router.visit('/transfers')" class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <Send class="h-6 w-6 text-gray-700 dark:text-gray-300" />
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Send</span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Send') }}</span>
                 </button>
                 <button @click="goToDepositOptions" class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <Plus class="h-6 w-6 text-gray-700 dark:text-gray-300" />
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Add money</span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Add money') }}</span>
                 </button>
                 <button class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <CreditCard class="h-6 w-6 text-gray-700 dark:text-gray-300" />
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Request</span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Request') }}</span>
                 </button>
             </div>
         </div>
 
-        <!-- =====================================================
-             CURRENCY CARDS - Horizontal scrollable row
-        ====================================================== -->
+        <!-- Currency cards -->
         <div class="mb-4">
             <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Your balances</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Your balances') }}</h2>
                 <div class="flex gap-2">
                     <button 
                         @click="scroll('left')" 
@@ -319,7 +308,6 @@ onUnmounted(() => {
                     class="scrollbar-hide flex gap-4 overflow-x-auto pb-4"
                     style="scrollbar-width: none; -ms-overflow-style: none;"
                 >
-                    <!-- Currency cards from real data -->
                     <div 
                         v-for="currency in currencies" 
                         :key="currency.id"
@@ -331,14 +319,14 @@ onUnmounted(() => {
                                 <div class="flex items-center gap-2">
                                     <span class="text-2xl">{{ currency.flag || '🌍' }}</span>
                                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">
-                                        {{ currency.isMain ? 'Main account' : currency.code }}
+                                        {{ currency.isMain ? t('Main account') : currency.code }}
                                     </p>
                                 </div>
                                 <p class="mt-2 text-xl font-bold text-gray-900 dark:text-white">
                                     {{ showBalance ? currency.formattedAmount : '••••' }}
                                 </p>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Available balance
+                                    {{ t('Available balance') }}
                                 </p>
                             </div>
                             <div class="rounded-full bg-gray-100 p-2 dark:bg-gray-800">
@@ -353,18 +341,17 @@ onUnmounted(() => {
                                     currency.isMain ? 'flex-1' : 'w-full'
                                 ]"
                             >
-                                Send
+                                {{ t('Send') }}
                             </button>
                             <button 
                                 v-if="currency.isMain"
                                 class="flex-1 rounded-lg bg-gray-700 py-2 text-sm font-medium text-white transition-all hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500"
                             >
-                                Manage
+                                {{ t('Manage') }}
                             </button>
                         </div>
                     </div>
 
-                    <!-- Add new currency card -->
                     <div 
                         @click="addNewCurrency"
                         class="min-w-[280px] flex-shrink-0 cursor-pointer rounded-xl border-2 border-dashed border-gray-300 bg-white p-5 text-center transition-all hover:border-gray-400 hover:shadow-md dark:border-gray-600 dark:bg-gray-900 dark:hover:border-gray-500"
@@ -374,8 +361,8 @@ onUnmounted(() => {
                                 <Plus class="h-6 w-6 text-gray-600 dark:text-gray-400" />
                             </div>
                             <div>
-                                <p class="font-medium text-gray-900 dark:text-white">Add new currency</p>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Open account in minutes</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ t('Add new currency') }}</p>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Open account in minutes') }}</p>
                             </div>
                         </div>
                     </div>
@@ -383,11 +370,9 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- =====================================================
-             ADD FUNDS — Deposit options row
-        ====================================================== -->
+        <!-- Add funds -->
         <div class="mb-4">
-            <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Add funds</h2>
+            <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('Add funds') }}</h2>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div 
                     v-for="option in depositOptions" 
@@ -398,8 +383,8 @@ onUnmounted(() => {
                     <div class="flex items-center gap-3">
                         <component :is="option.icon" class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ option.name }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Fee: {{ option.fee }}</p>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ t(option.nameKey) }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('Fee') }}: {{ t(option.feeKey) }}</p>
                         </div>
                     </div>
                     <ChevronRight class="h-4 w-4 text-gray-400 dark:text-gray-500" />
@@ -407,14 +392,12 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- =====================================================
-             RECENT TRANSACTIONS
-        ====================================================== -->
+        <!-- Transactions -->
         <div>
             <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Transactions</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Transactions') }}</h2>
                 <button class="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
-                    See all
+                    {{ t('See all') }}
                 </button>
             </div>
             <div class="space-y-2">
@@ -447,11 +430,12 @@ onUnmounted(() => {
                         </p>
                     </div>
                 </div>
-                
-                <!-- Empty state -->
+
                 <div v-if="recentTransactions.length === 0" class="rounded-xl border border-sidebar-border/70 bg-white p-8 text-center dark:border-sidebar-border dark:bg-gray-900">
-                    <p class="text-gray-500 dark:text-gray-400">No transactions yet</p>
-                    <button @click="goToDepositOptions" class="mt-2 text-sm text-blue-600 hover:underline">Make your first deposit</button>
+                    <p class="text-gray-500 dark:text-gray-400">{{ t('No transactions yet') }}</p>
+                    <button @click="goToDepositOptions" class="mt-2 text-sm text-blue-600 hover:underline dark:text-blue-400">
+                        {{ t('Make your first deposit') }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -463,13 +447,11 @@ onUnmounted(() => {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
-
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;
 }
-
 .scrollbar-hide {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
