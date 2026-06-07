@@ -23,7 +23,7 @@ const goToDashboard = () => {
             </div>
             <h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-white">{{ t('Deposit Successful!') }}</h1>
             <p class="mb-6 text-gray-600 dark:text-gray-400">
-                {{ t('$:amount has been added to your wallet.', { amount: `$${amount}` }) }}
+                {{ t('$:amount has been added to your wallet.', { amount: `${amount}` }) }}
             </p>
             <button 
                 @click="goToDashboard"

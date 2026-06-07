@@ -7,6 +7,7 @@
  * - Redirects to success page after payment
  * - Full Stripe Elements integration
  * - Mobile-first responsive design
+ * - Dark mode support for Stripe inputs
  */
 
 import { Head, router } from '@inertiajs/vue3';
@@ -108,6 +109,12 @@ const cardDetails = computed(() => {
 const cardGradient = computed(() => cardDetails.value.gradient);
 const cardTypeName = computed(() => cardDetails.value.displayName);
 
+// ==================== HELPER ====================
+// Detect if dark mode is active (Tailwind's 'dark' class on html)
+const isDarkMode = (): boolean => {
+    return document.documentElement.classList.contains('dark');
+};
+
 // ==================== METHODS ====================
 
 const goBack = () => {
@@ -128,6 +135,25 @@ const formatCurrency = (value: number): string => {
     }).format(value);
 };
 
+// Dynamic Stripe element style based on current theme
+const getElementStyle = () => {
+    const dark = isDarkMode();
+    return {
+        style: {
+            base: {
+                fontSize: '16px',
+                color: dark ? '#f3f4f6' : '#1f2937',
+                '::placeholder': {
+                    color: dark ? '#6b7280' : '#9ca3af',
+                },
+            },
+            invalid: {
+                color: '#dc2626',
+            },
+        },
+    };
+};
+
 const initializeStripe = async () => {
     try {
         if (!STRIPE_PUBLISHABLE_KEY) {
@@ -144,24 +170,11 @@ const initializeStripe = async () => {
         
         elements = stripe.elements();
         
-        const elementStyle = {
-            style: {
-                base: {
-                    fontSize: '16px',
-                    color: '#1f2937',
-                    '::placeholder': {
-                        color: '#9ca3af',
-                    },
-                },
-                invalid: {
-                    color: '#dc2626',
-                },
-            },
-        };
+        const style = getElementStyle();
         
-        cardNumberElement = elements.create('cardNumber', elementStyle);
-        cardExpiryElement = elements.create('cardExpiry', elementStyle);
-        cardCvcElement = elements.create('cardCvc', elementStyle);
+        cardNumberElement = elements.create('cardNumber', style);
+        cardExpiryElement = elements.create('cardExpiry', style);
+        cardCvcElement = elements.create('cardCvc', style);
         
         // Mount Card Number with detection
         if (cardNumberRef.value) {
@@ -300,15 +313,32 @@ const handleDeposit = async () => {
 };
 
 // ==================== LIFECYCLE ====================
+let themeObserver: MutationObserver | null = null;
 
 onMounted(() => {
     initializeStripe();
+    
+    // Watch for dark mode class changes on html element
+    themeObserver = new MutationObserver(() => {
+        if (cardNumberElement) {
+            // Destroy old elements and re‑create with new theme colors
+            cardNumberElement.destroy();
+            cardExpiryElement?.destroy();
+            cardCvcElement?.destroy();
+            initializeStripe();
+        }
+    });
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class'],
+    });
 });
 
 onUnmounted(() => {
     if (cardNumberElement) cardNumberElement.destroy();
     if (cardExpiryElement) cardExpiryElement.destroy();
     if (cardCvcElement) cardCvcElement.destroy();
+    if (themeObserver) themeObserver.disconnect();
 });
 </script>
 
