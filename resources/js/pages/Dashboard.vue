@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 import { useTranslation } from '@/composables/useTranslation';
+import AddCurrencyModal from '@/components/AddCurrencyModal.vue';
 
 const { t } = useTranslation();
 
@@ -95,6 +96,7 @@ const showBalance = ref(true);
 const scrollContainer = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(true);
+const showAddCurrencyModal = ref(false); // Modal visibility
 
 const currencies = ref<CurrencyBalance[]>([]);
 const recentTransactions = ref<Transaction[]>([]);
@@ -142,8 +144,24 @@ const getTransactionIcon = (type: string) => {
   return type === 'received' ? ArrowDownRight : ArrowUpRight;
 };
 
-const addNewCurrency = () => {
-  router.visit('/currencies/add');
+// Open modal instead of direct navigation
+const openAddCurrencyModal = () => {
+  showAddCurrencyModal.value = true;
+};
+
+// Called when a new wallet is successfully added
+const onCurrencyAdded = (newWallet: any) => {
+  // Add the new wallet to the local `currencies` array so it appears immediately
+  currencies.value.push({
+    id: newWallet.id,
+    code: newWallet.currency_code,
+    symbol: newWallet.currency_symbol,
+    amount: newWallet.balance,
+    formattedAmount: newWallet.formatted_balance,
+    flag: newWallet.currency_flag,
+    isMain: false,
+  });
+  // The scroll container will automatically include the new card.
 };
 
 const handleDeposit = (option: DepositOption) => {
@@ -180,6 +198,7 @@ const handleResize = () => {
   checkScrollButtons();
 };
 
+// ==================== LIFECYCLE ====================
 onMounted(() => {
   currencies.value = props.wallets.map(wallet => ({
     id: wallet.id,
@@ -228,7 +247,7 @@ onUnmounted(() => {
                     <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300">Earn R$250</span>
                 </div>
                 <button 
-                    @click="addNewCurrency"
+                    @click="openAddCurrencyModal"
                     class="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                     <Plus class="h-4 w-4" />
@@ -352,8 +371,9 @@ onUnmounted(() => {
                         </div>
                     </div>
 
+                    <!-- Add new currency card (dashed) – this now also opens the modal -->
                     <div 
-                        @click="addNewCurrency"
+                        @click="openAddCurrencyModal"
                         class="min-w-[280px] flex-shrink-0 cursor-pointer rounded-xl border-2 border-dashed border-gray-300 bg-white p-5 text-center transition-all hover:border-gray-400 hover:shadow-md dark:border-gray-600 dark:bg-gray-900 dark:hover:border-gray-500"
                     >
                         <div class="flex h-full flex-col items-center justify-center gap-3">
@@ -441,6 +461,13 @@ onUnmounted(() => {
         </div>
 
     </div>
+
+    <!-- Add Currency Modal -->
+    <AddCurrencyModal
+        :is-open="showAddCurrencyModal"
+        @close="showAddCurrencyModal = false"
+        @added="onCurrencyAdded"
+    />
 </template>
 
 <style scoped>

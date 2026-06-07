@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\TransferController;
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -28,7 +29,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/success', [DepositController::class, 'success'])->name('deposits.success');
         Route::get('/cancel', [DepositController::class, 'cancel'])->name('deposits.cancel');
         Route::get('/paypal', [DepositController::class, 'paypal'])->name('paypal');
-        // Authorized Agent deposit
         Route::get('/authorized-agent', [DepositController::class, 'authorizedAgent'])->name('authorized-agent');
     });
 
@@ -42,6 +42,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/success', [TransferController::class, 'success'])->name('transfers.success');
     });
 
+    // Add new currency wallet
+    Route::post('/wallets/add-currency', [WalletController::class, 'addCurrency'])->name('wallets.add-currency');
+    Route::get('/wallets/available-currencies', [WalletController::class, 'availableCurrencies'])->name('wallets.available-currencies');
 });
 
 // API routes (no Inertia, just JSON responses)
