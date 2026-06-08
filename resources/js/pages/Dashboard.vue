@@ -4,7 +4,7 @@ import { dashboard } from '@/routes';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { 
   Plus, Send, TrendingUp, Clock, ChevronRight, ChevronLeft,
-  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign
+  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign, Wallet
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 import { useTranslation } from '@/composables/useTranslation';
@@ -72,12 +72,11 @@ interface Transaction {
   date: string;
 }
 
-interface DepositOption {
+interface QuickAction {
   id: string;
   nameKey: string;
   icon: any;
-  feeKey: string;
-  timeKey: string;
+  action: () => void;
 }
 
 // ==================== STATE MANAGEMENT ====================
@@ -90,10 +89,20 @@ const showAddCurrencyModal = ref(false);
 const currencies = ref<CurrencyBalance[]>([]);
 const recentTransactions = ref<Transaction[]>([]);
 
-const depositOptions = ref<DepositOption[]>([
-  { id: 'bank', nameKey: 'Bank Transfer', icon: Landmark, feeKey: 'Free', timeKey: '1-3 days' },
-  { id: 'card', nameKey: 'Credit/Debit Card', icon: CreditCard, feeKey: '2.9%', timeKey: 'Instant' },
-  { id: 'wire', nameKey: 'Wire Transfer', icon: Send, feeKey: '$15', timeKey: 'Same day' },
+// Quick actions - replaces add funds section
+const quickActions = ref<QuickAction[]>([
+  { 
+    id: 'card', 
+    nameKey: 'Credit/Debit Card', 
+    icon: CreditCard, 
+    action: () => router.visit('/deposits/card') 
+  },
+  { 
+    id: 'paypal', 
+    nameKey: 'PayPal', 
+    icon: Wallet, 
+    action: () => router.visit('/deposits/paypal') 
+  },
 ]);
 
 // ==================== COMPUTED ====================
@@ -132,11 +141,6 @@ const onCurrencyAdded = (newWallet: any) => {
   });
 };
 
-const handleDeposit = (option: DepositOption) => {
-  if (option.id === 'card') router.visit('/deposits/card');
-  else console.log('Deposit with:', option.nameKey);
-};
-
 const goToDepositOptions = () => router.visit('/deposits');
 
 // ==================== SCROLL HELPERS ====================
@@ -161,11 +165,10 @@ const handleResize = () => { checkScrollButtons(); };
 
 // ==================== LIFECYCLE ====================
 onMounted(() => {
-  // ★★★ SORT WALLETS: MAIN ACCOUNT FIRST, THEN ALPHABETICAL BY CURRENCY CODE ★★★
+  // Sort wallets: main account first, then alphabetical by currency code
   const sortedWallets = [...props.wallets].sort((a, b) => {
     if (a.is_default) return -1;
     if (b.is_default) return 1;
-    
     return a.currency_code.localeCompare(b.currency_code);
   });
 
@@ -193,14 +196,12 @@ onMounted(() => {
   }
 
   window.addEventListener('resize', handleResize);
-
 });
 
 onUnmounted(() => {
-  if (scrollContainer.value){
-     scrollContainer.value.removeEventListener('scroll', checkScrollButtons);
+  if (scrollContainer.value) {
+    scrollContainer.value.removeEventListener('scroll', checkScrollButtons);
   }
-
   window.removeEventListener('resize', handleResize);
 });
 </script>
@@ -362,21 +363,20 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- Add funds -->
+        <!-- Quick Actions Section (replaces Add funds) -->
         <div class="mb-4">
-            <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('Add funds') }}</h2>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('Quick actions') }}</h2>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div 
-                    v-for="option in depositOptions" 
-                    :key="option.id"
-                    @click="handleDeposit(option)"
+                    v-for="action in quickActions" 
+                    :key="action.id"
+                    @click="action.action"
                     class="flex cursor-pointer items-center justify-between rounded-xl border border-sidebar-border/70 bg-white p-4 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900"
                 >
                     <div class="flex items-center gap-3">
-                        <component :is="option.icon" class="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        <component :is="action.icon" class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ t(option.nameKey) }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('Fee') }}: {{ t(option.feeKey) }}</p>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ t(action.nameKey) }}</p>
                         </div>
                     </div>
                     <ChevronRight class="h-4 w-4 text-gray-400 dark:text-gray-500" />
