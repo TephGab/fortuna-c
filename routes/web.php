@@ -30,6 +30,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/cancel', [DepositController::class, 'cancel'])->name('deposits.cancel');
         Route::get('/paypal', [DepositController::class, 'paypal'])->name('paypal');
         Route::get('/authorized-agent', [DepositController::class, 'authorizedAgent'])->name('authorized-agent');
+
+        // PayPal API endpoints (must be under the same prefix)
+        Route::post('/paypal/create-order', [DepositController::class, 'createPayPalOrder'])->name('deposits.paypal.create-order');
+        Route::get('/paypal/success', [DepositController::class, 'handlePayPalSuccess'])->name('deposits.paypal.success');
+        Route::get('/paypal/cancel', [DepositController::class, 'handlePayPalCancel'])->name('deposits.paypal.cancel');
+
+
     });
 
     // Transfer routes
