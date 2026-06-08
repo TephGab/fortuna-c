@@ -7,11 +7,6 @@ use App\Models\Transaction;
 
 class PendingDepositService
 {
-    /**
-     * Check if user has a pending deposit
-     *
-     * @throws \Exception
-     */
     public function check(User $user): void
     {
         $pendingDeposit = Transaction::where('user_id', $user->id)

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Common;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -10,11 +10,6 @@ class RateLimitService
     private const RATE_LIMIT_KEY = 'deposit_rate_limit_';
     private const RATE_LIMIT_COOLDOWN = 20;
 
-    /**
-     * Check if user is rate limited
-     *
-     * @throws \Exception
-     */
     public function check(User $user): void
     {
         $key = self::RATE_LIMIT_KEY . $user->id;

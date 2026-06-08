@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Services\Deposit;
 
 use App\Models\User;
 use App\Models\Wallet;
@@ -10,6 +10,7 @@ use App\Helpers\MoneyHelper;
 use Laravel\Cashier\Cashier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+
 
 class StripePaymentService
 {

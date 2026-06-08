@@ -7,11 +7,11 @@ use Inertia\Inertia;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 use App\Models\Currency;
-use App\Services\RateLimitService;
-use App\Services\LockService;
+use App\Services\Common\RateLimitService;
+use App\Services\Common\LockService;
 use App\Services\Deposit\PendingDepositService;
-use App\Services\Payment\StripePaymentService;
-use App\Services\Payment\PayPalPaymentService;
+use App\Services\Deposit\StripePaymentService;
+use App\Services\Deposit\PayPalPaymentService;
 use App\Services\Deposit\WebhookService;
 use Illuminate\Support\Facades\Log;
 
@@ -68,7 +68,8 @@ class DepositController extends Controller
         $sessionId = $request->get('session_id');
 
         if ($amount <= 0) {
-            return redirect()->route('dashboard')->with('error', 'Invalid deposit information');
+            return redirect()->route('dashboard')
+                ->with('error', 'Invalid deposit information');
         }
 
         $user = $request->user();
@@ -85,7 +86,8 @@ class DepositController extends Controller
 
     public function cancel(Request $request)
     {
-        return redirect()->route('deposits.card')->with('error', 'Deposit was cancelled. Please try again.');
+        return redirect()->route('deposits.card')
+            ->with('error', 'Deposit was cancelled. Please try again.');
     }
 
     // ==================== STRIPE METHODS ====================

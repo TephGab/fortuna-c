@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Common;
 
 use App\Models\User;
 use Illuminate\Contracts\Cache\Lock;
@@ -11,11 +11,6 @@ class LockService
     private const PROCESSING_LOCK_KEY = 'deposit_processing_';
     private const LOCK_DURATION = 30;
 
-    /**
-     * Acquire a lock for the user
-     *
-     * @throws \Exception
-     */
     public function acquire(User $user): Lock
     {
         $lockKey = self::PROCESSING_LOCK_KEY . $user->id;
@@ -28,9 +23,6 @@ class LockService
         return $lock;
     }
 
-    /**
-     * Release a lock
-     */
     public function release(Lock $lock): void
     {
         $lock->release();
