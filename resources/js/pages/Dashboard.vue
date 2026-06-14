@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { dashboard } from '@/routes';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { 
   Plus, Send, TrendingUp, Clock, ChevronRight, ChevronLeft,
-  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign, Wallet,
+  ArrowUpRight, ArrowDownRight, ArrowRight, Eye, EyeOff, Landmark, CreditCard, DollarSign, Wallet,
   Lock, Unlock, Sparkles, Percent
 } from 'lucide-vue-next';
-import { router } from '@inertiajs/vue3';
-import { useTranslation } from '@/composables/useTranslation';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import AddCurrencyModal from '@/components/AddCurrencyModal.vue';
-import CreateVaultModal from '@/pages/Vaults/CreateVaultModal.vue';
 import ClientOnly from '@/components/ClientOnly.vue';
+import { useTranslation } from '@/composables/useTranslation';
+import CreateVaultModal from '@/pages/Vaults/CreateVaultModal.vue';
+import { dashboard } from '@/routes';
 
 const { t } = useTranslation();
 
@@ -158,15 +158,21 @@ const getVaultStatusColor = (vault: any) => {
 // ==================== METHODS ====================
 const toggleBalanceVisibility = () => { showBalance.value = !showBalance.value; };
 
-const formatAmount = (amount: number, symbol: string) => `${symbol} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const formatCompactAmount = (amount: number, symbol: string) => {
-  if (amount >= 1000) return `${symbol} ${(amount / 1000).toFixed(1)}k`;
-  return `${symbol} ${amount.toFixed(2)}`;
+const getTransactionColor = (type: string) => {
+    if (type === 'received') return 'text-green-600 dark:text-green-400';
+    if (type === 'sent') return 'text-red-600 dark:text-red-400';
+    if (type === 'neutral') return 'text-gray-600 dark:text-gray-400';
+    return 'text-gray-600 dark:text-gray-400';
 };
 
-const getTransactionColor = (type: string) => type === 'received' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-const getTransactionIcon = (type: string) => type === 'received' ? ArrowDownRight : ArrowUpRight;
+const getTransactionIcon = (type: string) => {
+    if (type === 'received') return ArrowDownRight;
+    if (type === 'sent') return ArrowUpRight;
+    if (type === 'neutral') return ArrowRight;
+    return ArrowRight;
+};
+// const getTransactionColor = (type: string) => type === 'received' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+// const getTransactionIcon = (type: string) => type === 'received' ? ArrowDownRight : ArrowUpRight;
 
 const openAddCurrencyModal = () => { showAddCurrencyModal.value = true; };
 const openCreateVaultModal = () => { showCreateVaultModal.value = true; };

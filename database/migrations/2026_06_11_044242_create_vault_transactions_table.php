@@ -15,15 +15,16 @@ return new class extends Migration
             $table->id();
             $table->foreignId('vault_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained();
-            $table->enum('type', [
-                'deposit', 
-                'withdrawal', 
-                'interest', 
-                'penalty', 
-                'transfer_in', 
-                'transfer_out',
-                'maturity'
-            ]);
+            // $table->enum('type', [
+            //     'deposit', 
+            //     'withdrawal', 
+            //     'interest', 
+            //     'penalty', 
+            //     'transfer_in', 
+            //     'transfer_out',
+            //     'maturity'
+            // ]);
+            $table->string('type', 30);
             $table->bigInteger('amount')->default(0);
             $table->bigInteger('balance_after')->default(0);
             $table->string('currency', 3);
