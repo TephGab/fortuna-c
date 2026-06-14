@@ -12,12 +12,7 @@ use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
-    /**
-     * Display the user dashboard with wallets and recent transactions
-     *
-     * @return \Inertia\Response|\Illuminate\Http\RedirectResponse
-     */
-    public function index()
+     public function index()
     {
         $user = auth()->user();
         
@@ -40,13 +35,72 @@ class DashboardController extends Controller
         // Main currency for total balance display
         $mainCurrency = $this->getMainCurrency($defaultWallet);
         
+        // Get user's vaults (active, locked, matured - not closed)
+        $vaults = $user->vaults()
+            ->where('status', '!=', 'closed')
+            ->latest()
+            ->take(2)
+            ->get()
+            ->map(function($vault) {
+                return [
+                    'id' => $vault->id,
+                    'name' => $vault->name,
+                    'icon' => $vault->icon,
+                    'type' => $vault->type,
+                    'status' => $vault->status,
+                    'formatted_balance' => $vault->formatted_balance,
+                    'formatted_interest_earned' => $vault->formatted_interest_earned,
+                    'interest_rate' => $vault->interest_rate,
+                    'progress_percentage' => $vault->progress_percentage,
+                    'days_remaining_text' => $vault->days_remaining_text,
+                    'type_config' => $vault->type_config,
+                ];
+            });
+
         return Inertia::render('Dashboard', [
             'wallets' => $wallets,
-            'recentTransactions' => $recentTransactions,
+            'recentTransactions' => $recentTransactions,  // ← FIXED: correct variable name
+            'vaults' => $vaults,
             'totalBalance' => $totalBalanceInUSD,
             'mainCurrency' => $mainCurrency,
         ]);
     }
+
+    // /**
+    //  * Display the user dashboard with wallets and recent transactions
+    //  *
+    //  * @return \Inertia\Response|\Illuminate\Http\RedirectResponse
+    //  */
+    // public function index()
+    // {
+    //     $user = auth()->user();
+        
+    //     if (!$user) {
+    //         return redirect()->route('login');
+    //     }
+        
+    //     // Get user's wallets with currency info
+    //     $wallets = $this->getUserWallets($user);
+        
+    //     // Get the default wallet
+    //     $defaultWallet = $wallets->firstWhere('is_default', true);
+        
+    //     // Calculate total balance in USD
+    //     $totalBalanceInUSD = $this->calculateTotalBalanceInUSD($wallets);
+        
+    //     // Get recent transactions
+    //     $recentTransactions = $this->getRecentTransactions($user);
+        
+    //     // Main currency for total balance display
+    //     $mainCurrency = $this->getMainCurrency($defaultWallet);
+        
+    //     return Inertia::render('Dashboard', [
+    //         'wallets' => $wallets,
+    //         'recentTransactions' => $recentTransactions,
+    //         'totalBalance' => $totalBalanceInUSD,
+    //         'mainCurrency' => $mainCurrency,
+    //     ]);
+    // }
     
     /**
      * Get user's wallets with formatted balances

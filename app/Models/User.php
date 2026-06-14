@@ -55,10 +55,57 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the vaults for the user
+     */
+    public function vaults()
+    {
+        return $this->hasMany(Vault::class);
+    }
+
+    /**
      * Get all transactions
      */
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * Get user's default wallet
+     */
+    public function defaultWallet()
+    {
+        return $this->hasOne(Wallet::class)->where('is_default', true);
+    }
+
+    /**
+     * Get user's preferred currency code from their default wallet
+     */
+    public function getPreferredCurrency(): string
+    {
+        $defaultWallet = $this->wallets()
+            ->where('is_default', true)
+            ->with('currency')
+            ->first();
+
+        if ($defaultWallet && $defaultWallet->currency) {
+            return $defaultWallet->currency->code;
+        }
+
+        // Fallback: get any wallet
+        $anyWallet = $this->wallets()->with('currency')->first();
+        if ($anyWallet && $anyWallet->currency) {
+            return $anyWallet->currency->code;
+        }
+
+        return 'USD';
+    }
+
+    /**
+     * Accessor for preferred_currency
+     */
+    public function getPreferredCurrencyAttribute(): string
+    {
+        return $this->getPreferredCurrency();
     }
 }

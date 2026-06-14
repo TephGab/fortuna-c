@@ -4,11 +4,14 @@ import { dashboard } from '@/routes';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { 
   Plus, Send, TrendingUp, Clock, ChevronRight, ChevronLeft,
-  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign, Wallet
+  ArrowUpRight, ArrowDownRight, Eye, EyeOff, Landmark, CreditCard, DollarSign, Wallet,
+  Lock, Unlock, Sparkles, Percent
 } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 import { useTranslation } from '@/composables/useTranslation';
 import AddCurrencyModal from '@/components/AddCurrencyModal.vue';
+import CreateVaultModal from '@/pages/Vaults/CreateVaultModal.vue';
+import ClientOnly from '@/components/ClientOnly.vue';
 
 const { t } = useTranslation();
 
@@ -33,6 +36,24 @@ const props = defineProps<{
         name: string;
         date_display: string;
         status: string;
+    }>;
+    vaults?: Array<{
+        id: number;
+        name: string;
+        icon: string;
+        type: string;
+        status: string;
+        formatted_balance: string;
+        formatted_interest_earned: string;
+        interest_rate: number;
+        progress_percentage: number | null;
+        days_remaining_text: string | null;
+        type_config: {
+            name: string;
+            lock_days: number;
+            interest_rate: number;
+            icon: string;
+        };
     }>;
     totalBalance: number;
     mainCurrency: {
@@ -85,6 +106,7 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(true);
 const showAddCurrencyModal = ref(false);
+const showCreateVaultModal = ref(false);
 
 const currencies = ref<CurrencyBalance[]>([]);
 const recentTransactions = ref<Transaction[]>([]);
@@ -114,6 +136,25 @@ const mainCurrency = computed(() => ({
   formattedBalance: props.mainCurrency?.formatted_balance || `$${props.totalBalance.toFixed(2)}`
 }));
 
+// Vaults computed
+const hasVaults = computed(() => (props.vaults?.length || 0) > 0);
+const displayVaults = computed(() => (props.vaults || []).slice(0, 2));
+const remainingVaultsCount = computed(() => (props.vaults?.length || 0) - 2);
+
+// Get vault status icon
+const getVaultStatusIcon = (vault: any) => {
+    if (vault.status === 'locked') return Lock;
+    if (vault.status === 'matured') return Sparkles;
+    return TrendingUp;
+};
+
+// Get vault status color
+const getVaultStatusColor = (vault: any) => {
+    if (vault.status === 'locked') return 'text-amber-600 dark:text-amber-400';
+    if (vault.status === 'matured') return 'text-emerald-600 dark:text-emerald-400';
+    return 'text-blue-600 dark:text-blue-400';
+};
+
 // ==================== METHODS ====================
 const toggleBalanceVisibility = () => { showBalance.value = !showBalance.value; };
 
@@ -128,6 +169,9 @@ const getTransactionColor = (type: string) => type === 'received' ? 'text-green-
 const getTransactionIcon = (type: string) => type === 'received' ? ArrowDownRight : ArrowUpRight;
 
 const openAddCurrencyModal = () => { showAddCurrencyModal.value = true; };
+const openCreateVaultModal = () => { showCreateVaultModal.value = true; };
+const viewVault = (vaultId: number) => { router.visit(`/vaults/${vaultId}`); };
+const viewAllVaults = () => { router.visit('/vaults'); };
 
 const onCurrencyAdded = (newWallet: any) => {
   currencies.value.push({
@@ -139,6 +183,11 @@ const onCurrencyAdded = (newWallet: any) => {
     flag: newWallet.currency_flag,
     isMain: false,
   });
+};
+
+const onVaultCreated = () => {
+  showCreateVaultModal.value = false;
+  router.reload();
 };
 
 const goToDepositOptions = () => router.visit('/deposits');
@@ -363,8 +412,134 @@ onUnmounted(() => {
             </div>
         </div>
 
+        <!-- ==================== VAULTS PREVIEW SECTION (ADDED - NOTHING BROKEN) ==================== -->
+        
+        <!-- If user has vaults - show preview -->
+        <div v-if="hasVaults" class="mb-4">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Vaults') }}</h2>
+                <button 
+                    @click="viewAllVaults"
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                    {{ t('View all') }} 
+                    <span v-if="remainingVaultsCount > 0" class="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs dark:bg-gray-700">
+                        +{{ remainingVaultsCount }}
+                    </span>
+                </button>
+            </div>
+            
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <!-- Vault Cards Preview (max 2) -->
+                <div 
+                    v-for="vault in displayVaults" 
+                    :key="vault.id"
+                    @click="viewVault(vault.id)"
+                    class="group cursor-pointer rounded-xl border border-sidebar-border/70 bg-white p-4 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900"
+                >
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-2xl">{{ vault.icon || '💰' }}</span>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-white">{{ vault.name }}</h3>
+                                <p class="text-xs text-gray-500">{{ vault.type_config?.name }}</p>
+                            </div>
+                        </div>
+                        <component 
+                            :is="getVaultStatusIcon(vault)" 
+                            :class="['h-4 w-4', getVaultStatusColor(vault)]" 
+                        />
+                    </div>
+
+                    <div class="mt-3">
+                        <p class="text-xl font-bold text-gray-900 dark:text-white">
+                            {{ showBalance ? vault.formatted_balance : '••••••' }}
+                        </p>
+                        <p class="text-xs" :class="vault.formatted_interest_earned !== '$0.00' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500'">
+                            +{{ vault.formatted_interest_earned }} earned
+                        </p>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between">
+                        <div class="flex items-center gap-1 text-xs text-gray-500">
+                            <Percent class="h-3 w-3" />
+                            <span>{{ vault.interest_rate }}% APY</span>
+                        </div>
+                        <div v-if="vault.days_remaining_text" class="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                            <Clock class="h-3 w-3" />
+                            <span>{{ vault.days_remaining_text }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Mini progress bar for locked vaults -->
+                    <div v-if="vault.status === 'locked' && vault.progress_percentage" class="mt-3">
+                        <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                            <div 
+                                class="h-full rounded-full bg-amber-500 transition-all"
+                                :style="{ width: `${vault.progress_percentage}%` }"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- "Add New Vault" Card -->
+                <div 
+                    @click="openCreateVaultModal"
+                    class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-300 bg-white p-4 text-center transition-all hover:border-gray-400 hover:shadow-md dark:border-gray-600 dark:bg-gray-900 dark:hover:border-gray-500"
+                >
+                    <div class="rounded-full bg-gray-100 p-3 dark:bg-gray-800">
+                        <Plus class="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ t('Create New Vault') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('Save and earn interest') }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- If user has NO vaults - show empty state with preview card -->
+        <div v-else class="mb-4">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Vaults') }}</h2>
+                <button 
+                    @click="openCreateVaultModal"
+                    class="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                >
+                    {{ t('Create one') }}
+                </button>
+            </div>
+            
+            <!-- Preview / Empty State Card -->
+            <div 
+                @click="openCreateVaultModal"
+                class="cursor-pointer rounded-xl border border-sidebar-border/70 bg-gradient-to-r from-emerald-50 to-blue-50 p-5 transition-all hover:shadow-md dark:from-emerald-950/20 dark:to-blue-950/20 dark:border-sidebar-border"
+            >
+                <div class="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+                    <div class="rounded-full bg-white p-3 shadow-sm dark:bg-gray-800">
+                        <Lock class="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Grow your savings') }}</h3>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            {{ t('Create locked vaults to earn up to 7% APY on your savings. Choose from 30, 90, 180, or 365-day terms.') }}
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <span class="rounded-full bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">30 days → 2% APY</span>
+                            <span class="rounded-full bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">90 days → 3.5% APY</span>
+                            <span class="rounded-full bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">180 days → 5% APY</span>
+                            <span class="rounded-full bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">365 days → 7% APY</span>
+                        </div>
+                    </div>
+                    <button class="mt-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:mt-0">
+                        {{ t('Get Started') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Actions Section (replaces Add funds) -->
-        <div class="mb-4">
+        <!-- <div class="mb-4">
             <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('Quick actions') }}</h2>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div 
@@ -382,7 +557,7 @@ onUnmounted(() => {
                     <ChevronRight class="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 </div>
             </div>
-        </div>
+        </div> -->
 
         <!-- Transactions -->
         <div>
@@ -435,11 +610,24 @@ onUnmounted(() => {
     </div>
 
     <!-- Add Currency Modal -->
-    <AddCurrencyModal
-        :is-open="showAddCurrencyModal"
-        @close="showAddCurrencyModal = false"
-        @added="onCurrencyAdded"
-    />
+    <ClientOnly>
+        <AddCurrencyModal
+            :is-open="showAddCurrencyModal"
+            @close="showAddCurrencyModal = false"
+            @added="onCurrencyAdded"
+        />
+    </ClientOnly>
+
+    <!-- Create Vault Modal -->
+    <ClientOnly>
+        <CreateVaultModal
+            :is-open="showCreateVaultModal"
+            :wallets="wallets"
+            :available-types="{}"
+            @close="showCreateVaultModal = false"
+            @created="onVaultCreated"
+        />
+    </ClientOnly>
 </template>
 
 <style scoped>
