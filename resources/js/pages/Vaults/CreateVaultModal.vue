@@ -23,8 +23,8 @@
                         </button>
                     </div>
 
-                    <!-- Form Body -->
-                    <div class="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
+                    <!-- Step 1: Form Body -->
+                    <div v-if="!showConfirmation" class="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
                         <!-- Vault Name -->
                         <div class="mb-5">
                             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -141,30 +141,27 @@
                             ></textarea>
                         </div>
 
-                        <!-- Summary Box - All data comes pre-formatted from backend -->
-                        <div v-if="selectedType" class="mb-5 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
-                            <p class="mb-2 text-sm font-medium text-gray-900 dark:text-white">Summary</p>
-                            <div class="space-y-1 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600">Vault Type</span>
-                                    <span class="font-medium">{{ selectedTypeConfig?.name }}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600">Interest Rate</span>
-                                    <span class="font-medium text-emerald-600">{{ selectedTypeConfig?.interest_rate }}% APY</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600">Lock Period</span>
-                                    <span class="font-medium">{{ selectedTypeConfig?.lock_days }} days</span>
-                                </div>
-                                <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                                    <span class="text-gray-600">Initial Deposit</span>
-                                    <span class="font-semibold">{{ formattedDeposit }}</span>
-                                </div>
-                                <div v-if="projectedInterest" class="flex justify-between">
-                                    <span class="text-gray-600">Projected Interest</span>
-                                    <span class="font-medium text-emerald-600">{{ projectedInterest }}</span>
-                                </div>
+                        <!-- Preview Box (like DepositModal) -->
+                        <div v-if="selectedType" class="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">{{ t('Vault Type') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ selectedTypeConfig?.name }}</span>
+                            </div>
+                            <div class="mt-2 flex justify-between text-sm">
+                                <span class="text-gray-600">{{ t('Interest Rate') }}</span>
+                                <span class="font-medium text-emerald-600">{{ selectedTypeConfig?.interest_rate }}% APY</span>
+                            </div>
+                            <div class="mt-2 flex justify-between text-sm">
+                                <span class="text-gray-600">{{ t('Lock Period') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ selectedTypeConfig?.lock_days }} {{ t('days') }}</span>
+                            </div>
+                            <div class="mt-2 flex justify-between border-t border-gray-200 pt-2 dark:border-gray-700">
+                                <span class="font-medium text-gray-900 dark:text-white">{{ t('Initial Deposit') }}</span>
+                                <span class="font-bold text-emerald-600">{{ formattedDeposit }}</span>
+                            </div>
+                            <div v-if="projectedInterest && form.initial_deposit > 0" class="mt-2 flex justify-between">
+                                <span class="font-medium text-gray-900 dark:text-white">{{ t('Projected Interest') }}</span>
+                                <span class="font-bold text-emerald-600">{{ projectedInterest }}</span>
                             </div>
                         </div>
 
@@ -183,26 +180,98 @@
                         <div v-if="errors.general" class="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
                             <p class="text-sm text-red-600">{{ errors.general }}</p>
                         </div>
+
+                        <!-- Footer Buttons -->
+                        <div class="sticky bottom-0 mt-6 flex gap-3 rounded-b-2xl border-t border-gray-200 bg-white pt-4 dark:border-gray-800 dark:bg-gray-900">
+                            <button
+                                type="button"
+                                @click="closeModal"
+                                class="flex-1 rounded-xl border border-gray-300 py-2.5 font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                @click="goToConfirmation"
+                                :disabled="!isFormValid"
+                                class="flex-1 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Continue
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Footer Buttons -->
-                    <div class="sticky bottom-0 flex gap-3 rounded-b-2xl border-t border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                        <button
-                            type="button"
-                            @click="closeModal"
-                            class="flex-1 rounded-xl border border-gray-300 py-2.5 font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            @click="submitForm"
-                            :disabled="isSubmitting || !isFormValid"
-                            class="flex-1 rounded-xl bg-gray-900 py-2.5 font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
-                        >
-                            <Loader2 v-if="isSubmitting" class="mx-auto h-5 w-5 animate-spin" />
-                            <span v-else>Create Vault</span>
-                        </button>
+                    <!-- Step 2: Confirmation Screen -->
+                    <div v-else class="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
+                        <div class="rounded-xl bg-emerald-50 p-4 text-center dark:bg-emerald-900/20">
+                            <div class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                                <Wallet class="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <p class="text-sm text-emerald-700 dark:text-emerald-300">{{ t('Please review your vault details') }}</p>
+                        </div>
+
+                        <!-- Confirmation Details -->
+                        <div class="mt-4 space-y-3 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                            <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
+                                <span class="text-gray-600">{{ t('Vault Name') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ form.name }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
+                                <span class="text-gray-600">{{ t('Vault Type') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ selectedTypeConfig?.name }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
+                                <span class="text-gray-600">{{ t('Interest Rate') }}</span>
+                                <span class="font-bold text-emerald-600">{{ selectedTypeConfig?.interest_rate }}% APY</span>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
+                                <span class="text-gray-600">{{ t('Lock Period') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ selectedTypeConfig?.lock_days }} {{ t('days') }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
+                                <span class="text-gray-600">{{ t('Source Wallet') }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ selectedWallet?.currency_code }} - {{ selectedWallet?.formatted_balance }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">{{ t('Initial Deposit') }}</span>
+                                <span class="font-bold text-emerald-600">{{ formattedDeposit }}</span>
+                            </div>
+                            <div v-if="projectedInterest && form.initial_deposit > 0" class="flex justify-between">
+                                <span class="text-gray-600">{{ t('Projected Interest') }}</span>
+                                <span class="font-bold text-emerald-600">{{ projectedInterest }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Warning in confirmation -->
+                        <div v-if="selectedType !== 'flexible'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                            <div class="flex items-start gap-2">
+                                <AlertCircle class="h-5 w-5 flex-shrink-0 text-amber-600" />
+                                <p class="text-sm text-amber-800 dark:text-amber-300">
+                                    ⚠️ {{ t('Funds will be locked for') }} {{ selectedTypeConfig?.lock_days }} {{ t('days') }}. 
+                                    {{ t('Early withdrawal incurs a') }} {{ selectedTypeConfig?.penalty }}% {{ t('penalty') }}.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Footer Buttons -->
+                        <div class="sticky bottom-0 mt-6 flex gap-3 rounded-b-2xl border-t border-gray-200 bg-white pt-4 dark:border-gray-800 dark:bg-gray-900">
+                            <button
+                                type="button"
+                                @click="showConfirmation = false"
+                                class="flex-1 rounded-xl border border-gray-300 py-2.5 font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                            >
+                                {{ t('Back') }}
+                            </button>
+                            <button
+                                type="button"
+                                @click="submitForm"
+                                :disabled="isSubmitting"
+                                class="flex-1 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                                <Loader2 v-if="isSubmitting" class="mx-auto h-5 w-5 animate-spin" />
+                                <span v-else>{{ t('Confirm Creation') }}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -212,8 +281,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { X, TrendingUp, Lock, Unlock, CheckCircle, AlertCircle, Loader2 } from 'lucide-vue-next';
+import { X, TrendingUp, Lock, Unlock, CheckCircle, AlertCircle, Loader2, Wallet } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
+import { useTranslation } from '@/composables/useTranslation';
+
+const { t } = useTranslation();
 
 // ============================================================================
 // PROPS - All data comes pre-formatted from backend
@@ -226,7 +298,7 @@ const props = defineProps<{
         currency_code: string;
         currency_symbol: string;
         formatted_balance: string;
-        balance_float: number;
+        balance_raw: number; // Raw integer in smallest unit (cents)
     }>;
     availableTypes: Record<string, {
         name: string;
@@ -263,6 +335,7 @@ const form = ref({
 const selectedType = ref<string>('');
 const isSubmitting = ref(false);
 const errors = ref<Record<string, string>>({});
+const showConfirmation = ref(false);
 
 // ============================================================================
 // COMPUTED - Simple data lookups, no formatting logic
@@ -282,13 +355,15 @@ const isFormValid = computed(() => {
     return selectedType.value && form.value.name && form.value.wallet_id;
 });
 
-// This uses backend data, no formatting logic
+// Format deposit for display - uses pre-formatted values from backend where possible
 const formattedDeposit = computed(() => {
-    if (!selectedWallet.value) return `$${form.value.initial_deposit || 0}`;
+    if (!selectedWallet.value) {
+        return `$${form.value.initial_deposit || 0}`;
+    }
     return `${selectedWallet.value.currency_symbol} ${form.value.initial_deposit || 0}`;
 });
 
-// This comes from API call, not calculated in Vue
+// Projected interest from API (already formatted by backend)
 const projectedInterest = ref<string | null>(null);
 
 // ============================================================================
@@ -297,7 +372,7 @@ const projectedInterest = ref<string | null>(null);
 
 /**
  * Fetch projected interest from backend API
- * No calculations done in Vue
+ * No calculations done in Vue - backend returns formatted string
  */
 const fetchProjectedInterest = async () => {
     if (!selectedType.value || !form.value.initial_deposit || form.value.initial_deposit <= 0) {
@@ -315,6 +390,7 @@ const fetchProjectedInterest = async () => {
             body: JSON.stringify({
                 type: selectedType.value,
                 amount: form.value.initial_deposit,
+                wallet_id: form.value.wallet_id,
             }),
         });
         
@@ -331,7 +407,7 @@ const fetchProjectedInterest = async () => {
 /**
  * Watch for changes to fetch new interest preview
  */
-watch([selectedType, () => form.value.initial_deposit], () => {
+watch([selectedType, () => form.value.initial_deposit, () => form.value.wallet_id], () => {
     fetchProjectedInterest();
 });
 
@@ -340,6 +416,14 @@ watch([selectedType, () => form.value.initial_deposit], () => {
  */
 const selectType = (type: string) => {
     selectedType.value = type;
+};
+
+/**
+ * Go to confirmation screen
+ */
+const goToConfirmation = () => {
+    if (!isFormValid.value) return;
+    showConfirmation.value = true;
 };
 
 /**
@@ -356,18 +440,19 @@ watch(() => props.isOpen, (open) => {
         selectedType.value = '';
         errors.value = {};
         projectedInterest.value = null;
+        showConfirmation.value = false;
     }
 });
 
 /**
- * Submit form using Inertia (not manual fetch)
+ * Submit form using Inertia
  * Backend handles all validation and returns errors
+ * Amount is sent as dollars (float), backend converts to smallest unit
  */
 const submitForm = async () => {
     isSubmitting.value = true;
     errors.value = {};
     
-    // Use Inertia post instead of manual fetch
     router.post('/vaults', {
         name: form.value.name,
         type: selectedType.value,
@@ -381,8 +466,9 @@ const submitForm = async () => {
             closeModal();
         },
         onError: (backendErrors) => {
-            // Backend returns all validation errors
             errors.value = backendErrors;
+            // If there's an error, go back to form
+            showConfirmation.value = false;
         },
         onFinish: () => {
             isSubmitting.value = false;
@@ -394,6 +480,7 @@ const submitForm = async () => {
  * Close modal - just emit event, parent handles everything
  */
 const closeModal = () => {
+    showConfirmation.value = false;
     emit('close');
 };
 </script>

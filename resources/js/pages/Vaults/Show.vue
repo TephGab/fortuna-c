@@ -44,6 +44,8 @@ const props = defineProps<{
         interest_rate: number;
         locked_until: string | null;
         matures_at: string | null;
+        currency_code?: string;
+        currency_symbol?: string;
         type_config: {
             name: string;
             lock_days: number;
@@ -82,6 +84,14 @@ const props = defineProps<{
         color_class: string;
         bg_color_class: string;
     }>;
+    wallets?: Array<{
+        id: number;
+        currency_code: string;
+        currency_symbol: string;
+        formatted_balance: string;
+        balance_float: number;
+        is_default?: boolean;
+    }>;
 }>();
 
 // ==================== COMPUTED ====================
@@ -103,24 +113,24 @@ const withdrawDisabledMessage = computed(() => {
     const daysText = props.vault.days_remaining_text;
     
     if (!daysText) {
-        return ' Funds are locked until maturity date';
+        return 'Funds are locked until maturity date';
     }
     
     if (daysText === 'Unlocks today!') {
-        return ' Funds unlock today';
+        return 'Funds unlock today';
     }
     
     if (daysText === '1 day remaining') {
-        return ' Funds are locked for 1 day';
+        return 'Funds are locked for 1 day';
     }
     
     // Extract number from "X days remaining"
     const match = daysText.match(/(\d+)/);
     if (match) {
-        return ` Funds are locked for ${match[1]} days`;
+        return `Funds are locked for ${match[1]} days`;
     }
     
-    return ' Funds are locked until maturity date';
+    return 'Funds are locked until maturity date';
 });
 
 const formatDate = (dateString: string | null | undefined) => {
@@ -133,6 +143,11 @@ const formatDate = (dateString: string | null | undefined) => {
         year: 'numeric',
     });
 };
+
+// Get user wallets for deposit
+const userWallets = computed(() => {
+    return props.wallets || [];
+});
 
 // ==================== STATE ====================
 const showDepositModal = ref(false);
@@ -434,7 +449,7 @@ const closeVault = async () => {
         <DepositModal
             :is-open="showDepositModal"
             :vault="vault"
-            :wallets="[]"
+            :wallets="userWallets"
             @close="showDepositModal = false"
             @deposited="handleDepositSuccess"
         />

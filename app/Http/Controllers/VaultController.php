@@ -79,6 +79,7 @@ class VaultController extends Controller
     public function show(Vault $vault)
     {
         $this->authorize('view', $vault);
+        $user = auth()->user();
         
         $vault->load(['wallet.currency', 'transactions' => function($q) {
             $q->latest()->limit(50);
@@ -95,7 +96,8 @@ class VaultController extends Controller
                 'type' => $vault->type,
                 'status' => $vault->status,
                 'description' => $vault->description,
-                'formatted_balance' => $vault->formatted_balance,
+                'balance' => $vault->balance,  // Raw integer in cents (e.g., 3500)
+                'formatted_balance' => $vault->formatted_balance,  // Formatted string (e.g., "$ 35.00")
                 'formatted_interest_earned' => $vault->formatted_interest_earned,
                 'formatted_total_value' => $vault->formatted_total_value,
                 'interest_rate' => $vault->interest_rate,
@@ -125,6 +127,16 @@ class VaultController extends Controller
                     'icon' => $transaction->icon,
                     'color_class' => $transaction->color_class,
                     'bg_color_class' => $transaction->bg_color_class,
+                ];
+            }),
+            'wallets' => $user->wallets()->with('currency')->get()->map(function ($wallet) {
+                return [
+                    'id' => $wallet->id,
+                    'currency_code' => $wallet->currency->code,
+                    'currency_symbol' => $wallet->currency->symbol,
+                    'formatted_balance' => MoneyHelper::format($wallet->balance, $wallet->currency->code),
+                    'balance_float' => MoneyHelper::fromSmallestUnit($wallet->balance, $wallet->currency->code),
+                    'is_default' => $wallet->is_default,
                 ];
             }),
         ]);
@@ -296,27 +308,87 @@ class VaultController extends Controller
     // ============================================================================
     // API/JSON ENDPOINTS
     // ============================================================================
-
-    public function previewInterest(Request $request)
-    {
-        $request->validate([
-            'type' => ['required', Rule::in(array_keys(Vault::TYPES))],
-            'amount' => 'required|numeric|min:1',
-        ]);
-        
-        $typeConfig = Vault::TYPES[$request->type];
-        $interestRate = $typeConfig['interest_rate'];
-        
-        $projectedInterest = ($request->amount * $interestRate) / 100;
-        
-        return response()->json([
-            'interest_rate' => $interestRate,
-            'projected_interest' => round($projectedInterest, 2),
-            'lock_days' => $typeConfig['lock_days'],
-            'penalty' => $typeConfig['penalty'],
-            'formatted_interest' => number_format($projectedInterest, 2),
-        ]);
+    /**
+ * Preview interest for a vault type
+ * 
+ * @param Request $request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function previewInterest(Request $request)
+{
+    $request->validate([
+        'type' => ['required', Rule::in(array_keys(Vault::TYPES))],
+        'amount' => 'required|numeric|min:1',
+        'wallet_id' => 'sometimes|exists:wallets,id', // Optional: use selected wallet's currency
+    ]);
+    
+    $user = auth()->user();
+    $typeConfig = Vault::TYPES[$request->type];
+    $interestRate = $typeConfig['interest_rate'];
+    
+    // Calculate projected interest in dollars
+    $projectedInterest = ($request->amount * $interestRate) / 100;
+    
+    // Get currency from selected wallet or default wallet
+    if ($request->has('wallet_id')) {
+        $wallet = $user->wallets()->with('currency')->find($request->wallet_id);
+        $currencyCode = $wallet ? $wallet->currency->code : 'USD';
+        $currencySymbol = $wallet ? $wallet->currency->symbol : '$';
+    } else {
+        $defaultWallet = $user->wallets()->where('is_default', true)->with('currency')->first();
+        $currencyCode = $defaultWallet ? $defaultWallet->currency->code : 'USD';
+        $currencySymbol = $defaultWallet ? $defaultWallet->currency->symbol : '$';
     }
+    
+    // Convert projected interest to smallest unit (cents) for MoneyHelper
+    $projectedInterestInCents = (int) round($projectedInterest * 100);
+    
+    return response()->json([
+        'interest_rate' => $interestRate,
+        'projected_interest' => round($projectedInterest, 2),
+        'lock_days' => $typeConfig['lock_days'],
+        'penalty' => $typeConfig['penalty'],
+        'formatted_interest' => MoneyHelper::format($projectedInterestInCents, $currencyCode),
+        'currency_symbol' => $currencySymbol,
+    ]);
+}
+// /**
+//  * Preview interest for a vault type
+//  * 
+//  * @param Request $request
+//  * @return \Illuminate\Http\JsonResponse
+//  */
+// public function previewInterest(Request $request)
+// {
+//     $request->validate([
+//         'type' => ['required', Rule::in(array_keys(Vault::TYPES))],
+//         'amount' => 'required|numeric|min:1',
+//     ]);
+    
+//     $user = auth()->user();
+//     $typeConfig = Vault::TYPES[$request->type];
+//     $interestRate = $typeConfig['interest_rate'];
+    
+//     // Calculate projected interest in dollars
+//     $projectedInterest = ($request->amount * $interestRate) / 100;
+    
+//     // Get the user's preferred currency from their default wallet
+//     $defaultWallet = $user->wallets()->where('is_default', true)->with('currency')->first();
+//     $currencyCode = $defaultWallet ? $defaultWallet->currency->code : 'USD';
+//     $currencySymbol = $defaultWallet ? $defaultWallet->currency->symbol : '$';
+    
+//     // Convert projected interest to smallest unit (cents) for MoneyHelper
+//     $projectedInterestInCents = (int) round($projectedInterest * 100);
+    
+//     return response()->json([
+//         'interest_rate' => $interestRate,
+//         'projected_interest' => round($projectedInterest, 2),
+//         'lock_days' => $typeConfig['lock_days'],
+//         'penalty' => $typeConfig['penalty'],
+//         'formatted_interest' => MoneyHelper::format($projectedInterestInCents, $currencyCode),
+//         'currency_symbol' => $currencySymbol,
+//     ]);
+// }
 
     public function previewWithdrawal(Request $request, Vault $vault)
     {
