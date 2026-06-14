@@ -113,6 +113,8 @@ class VaultController extends Controller
                 'is_locked' => $vault->isLocked(),
                 'is_matured' => $vault->isMatured(),
                 'can_early_withdraw' => $vault->canEarlyWithdraw(),
+                'created_at' => $vault->created_at,
+                'updated_at' => $vault->updated_at,
             ],
             'transactions' => $vault->transactions->map(function ($transaction) {
                 return [
