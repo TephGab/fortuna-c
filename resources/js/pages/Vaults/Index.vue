@@ -52,17 +52,28 @@ const maturedVaults = computed(() => props.vaults.filter(v => v.status === 'matu
 const getDisplayBalance = (vault: any) => {
     if (!showBalance.value) return '••••••';
     if (vault.balance === 0 && vault.interest_earned === 0) return '$0.00';
-    return vault.formatted_balance;
+    // Use formatted_balance from backend, fallback to manual format
+    if (vault.formatted_balance) return vault.formatted_balance;
+    return `$${(vault.balance / 100).toFixed(2)}`;
 };
 
 const getDisplayInterest = (vault: any) => {
     if (!showBalance.value) return '••••••';
-    if (vault.interest_earned === 0) return t('No interest yet');
-    return `+${vault.formatted_interest_earned} earned`;
+    
+    // Check if interest_earned exists and has value
+    const interestEarned = vault.interest_earned || 0;
+    if (interestEarned === 0) return t('No interest yet');
+    
+    // Use formatted_interest_earned from backend, fallback to manual format
+    if (vault.formatted_interest_earned) {
+        return `+${vault.formatted_interest_earned} earned`;
+    }
+    return `+$${(interestEarned / 100).toFixed(2)} earned`;
 };
 
 const getInterestColorClass = (vault: any) => {
-    if (vault.interest_earned === 0) return 'text-gray-500 dark:text-gray-400';
+    const interestEarned = vault.interest_earned || 0;
+    if (interestEarned === 0) return 'text-gray-500 dark:text-gray-400';
     return 'text-emerald-600 dark:text-emerald-400';
 };
 
@@ -232,11 +243,9 @@ const closeWithdrawModal = () => {
                         </div>
 
                         <div class="mt-4">
-                            <!-- Balance Display - Shows $0.00 when empty -->
                             <p class="text-2xl font-bold text-gray-900 dark:text-white">
                                 {{ getDisplayBalance(vault) }}
                             </p>
-                            <!-- Interest Display - Shows "No interest yet" when zero -->
                             <p :class="getInterestColorClass(vault)" class="text-sm">
                                 {{ getDisplayInterest(vault) }}
                             </p>
@@ -245,7 +254,7 @@ const closeWithdrawModal = () => {
                         <div class="mt-4 flex items-center justify-between">
                             <div class="flex items-center gap-1 text-xs text-gray-500">
                                 <Percent class="h-3 w-3" />
-                                <span>{{ vault.interest_rate }}% APY</span>
+                                <span>{{ vault.interest_rate || 0 }}% APY</span>
                             </div>
                             <div class="flex gap-2">
                                 <button
@@ -256,7 +265,7 @@ const closeWithdrawModal = () => {
                                 </button>
                                 <button
                                     @click.stop="openWithdrawModal(vault)"
-                                    :disabled="vault.balance === 0 && vault.interest_earned === 0"
+                                    :disabled="(vault.balance || 0) === 0 && (vault.interest_earned || 0) === 0"
                                     class="rounded-lg px-3 py-1.5 text-xs font-medium border border-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                                 >
                                     {{ t('Withdraw') }}
@@ -291,18 +300,16 @@ const closeWithdrawModal = () => {
                         </div>
 
                         <div class="mt-4">
-                            <!-- Balance Display - Shows $0.00 when empty -->
                             <p class="text-2xl font-bold text-gray-900 dark:text-white">
                                 {{ getDisplayBalance(vault) }}
                             </p>
-                            <!-- Interest Display - Shows "No interest yet" when zero -->
                             <p :class="getInterestColorClass(vault)" class="text-sm">
                                 {{ getDisplayInterest(vault) }}
                             </p>
                         </div>
 
                         <!-- Progress Bar (only show if vault has balance) -->
-                        <div v-if="vault.balance > 0" class="mt-4">
+                        <div v-if="(vault.balance || 0) > 0" class="mt-4">
                             <div class="flex justify-between text-xs text-gray-500 mb-1">
                                 <span>Lock progress</span>
                                 <span>{{ vault.progress_percentage || 0 }}%</span>
@@ -322,7 +329,7 @@ const closeWithdrawModal = () => {
                         <!-- Empty vault message -->
                         <div v-else class="mt-4 rounded-lg bg-gray-50 p-3 text-center dark:bg-gray-800">
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                💰 Add funds to start earning {{ vault.interest_rate }}% APY
+                                💰 Add funds to start earning {{ vault.interest_rate || 0 }}% APY
                             </p>
                         </div>
 
@@ -356,36 +363,34 @@ const closeWithdrawModal = () => {
                                     <p class="text-xs text-gray-500">{{ vault.type_config?.name }}</p>
                                 </div>
                             </div>
-                            <div :class="vault.status_badge.color" class="rounded-full px-2 py-0.5 text-xs">
-                                {{ vault.status_badge.text }}
+                            <div :class="vault.status_badge?.color" class="rounded-full px-2 py-0.5 text-xs">
+                                {{ vault.status_badge?.text || 'Matured' }}
                             </div>
                         </div>
 
                         <div class="mt-4">
-                            <!-- Balance Display - Shows $0.00 when empty -->
                             <p class="text-2xl font-bold text-gray-900 dark:text-white">
                                 {{ getDisplayBalance(vault) }}
                             </p>
-                            <!-- Interest Display - Shows "No interest yet" when zero -->
                             <p :class="getInterestColorClass(vault)" class="text-sm">
                                 {{ getDisplayInterest(vault) }}
                             </p>
                         </div>
 
                         <!-- Interest summary for matured vaults with balance -->
-                        <div v-if="vault.interest_earned > 0" class="mt-3 rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-900/20">
+                        <div v-if="(vault.interest_earned || 0) > 0" class="mt-3 rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-900/20">
                             <p class="text-xs text-emerald-700 dark:text-emerald-400">
-                                🎉 Total interest earned: {{ vault.formatted_interest_earned }}
+                                🎉 Total interest earned: {{ vault.formatted_interest_earned || `$${((vault.interest_earned || 0) / 100).toFixed(2)}` }}
                             </p>
                         </div>
 
                         <div class="mt-4 flex justify-end gap-2">
                             <button
                                 @click.stop="openWithdrawModal(vault)"
-                                :disabled="vault.balance === 0 && vault.interest_earned === 0"
+                                :disabled="(vault.balance || 0) === 0 && (vault.interest_earned || 0) === 0"
                                 class="rounded-lg px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {{ vault.balance > 0 || vault.interest_earned > 0 ? t('Withdraw Funds') : t('Empty Vault') }}
+                                {{ (vault.balance || 0) > 0 || (vault.interest_earned || 0) > 0 ? t('Withdraw Funds') : t('Empty Vault') }}
                             </button>
                         </div>
                     </div>
