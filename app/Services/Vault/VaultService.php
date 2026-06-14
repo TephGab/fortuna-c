@@ -22,52 +22,52 @@ class VaultService
 
     // app/Services/Vault/VaultService.php
 
-public function createVault(
-    User $user,
-    Wallet $wallet,
-    string $name,
-    string $type,
-    int $initialAmount = 0,
-    ?string $description = null
-): Vault {
-    $typeConfig = Vault::TYPES[$type];
-    
-    $lockDays = $typeConfig['lock_days'];
-    $lockedUntil = $lockDays > 0 ? now()->addDays($lockDays) : null;
-    $maturesAt = $lockDays > 0 ? now()->addDays($lockDays) : null;
+    public function createVault(
+        User $user,
+        Wallet $wallet,
+        string $name,
+        string $type,
+        int $initialAmount = 0,
+        ?string $description = null
+    ): Vault {
+        $typeConfig = Vault::TYPES[$type];
 
-    // FIX: Set status to LOCKED for locked vault types, ACTIVE for flexible
-    $status = $type === 'flexible' ? Vault::STATUS_ACTIVE : Vault::STATUS_LOCKED;
+        $lockDays = $typeConfig['lock_days'];
+        $lockedUntil = $lockDays > 0 ? now()->addDays($lockDays) : null;
+        $maturesAt = $lockDays > 0 ? now()->addDays($lockDays) : null;
 
-    $vault = Vault::create([
-        'user_id' => $user->id,
-        'wallet_id' => $wallet->id,
-        'name' => $name,
-        'icon' => $typeConfig['icon'],
-        'type' => $type,
-        'status' => $status,  // ← FIXED: Now 'locked' for locked vaults
-        'balance' => $initialAmount,
-        'withdrawable_balance' => $this->getInitialWithdrawableBalance($type, $initialAmount),
-        'original_balance' => $initialAmount,
-        'interest_rate' => $typeConfig['interest_rate'],
-        'locked_until' => $lockedUntil,
-        'matures_at' => $maturesAt,
-        'description' => $description,
-    ]);
+        // FIX: Set status to LOCKED for locked vault types, ACTIVE for flexible
+        $status = $type === 'flexible' ? Vault::STATUS_ACTIVE : Vault::STATUS_LOCKED;
 
-    if ($initialAmount > 0) {
-        $this->recordTransaction($vault, VaultTransaction::TYPE_DEPOSIT, $initialAmount);
+        $vault = Vault::create([
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'name' => $name,
+            'icon' => $typeConfig['icon'],
+            'type' => $type,
+            'status' => $status,  // ← FIXED: Now 'locked' for locked vaults
+            'balance' => $initialAmount,
+            'withdrawable_balance' => $this->getInitialWithdrawableBalance($type, $initialAmount),
+            'original_balance' => $initialAmount,
+            'interest_rate' => $typeConfig['interest_rate'],
+            'locked_until' => $lockedUntil,
+            'matures_at' => $maturesAt,
+            'description' => $description,
+        ]);
+
+        if ($initialAmount > 0) {
+            $this->recordTransaction($vault, VaultTransaction::TYPE_DEPOSIT, $initialAmount);
+        }
+
+        Log::info('Vault created', [
+            'user_id' => $user->id,
+            'vault_id' => $vault->id,
+            'type' => $type,
+            'status' => $status  // ← Log the status for debugging
+        ]);
+
+        return $vault;
     }
-
-    Log::info('Vault created', [
-        'user_id' => $user->id, 
-        'vault_id' => $vault->id,
-        'type' => $type,
-        'status' => $status  // ← Log the status for debugging
-    ]);
-
-    return $vault;
-}
 
     // public function createVault(
     //     User $user,
@@ -78,7 +78,7 @@ public function createVault(
     //     ?string $description = null
     // ): Vault {
     //     $typeConfig = Vault::TYPES[$type];
-        
+
     //     $lockDays = $typeConfig['lock_days'];
     //     $lockedUntil = $lockDays > 0 ? now()->addDays($lockDays) : null;
     //     $maturesAt = $lockDays > 0 ? now()->addDays($lockDays) : null;
@@ -121,32 +121,31 @@ public function createVault(
     public function deposit(Vault $vault, int $amountInSmallestUnit, ?Wallet $sourceWallet = null): void
     {
         $wallet = $sourceWallet ?? $vault->wallet;
-        
+
         if ($wallet->currency_code !== $vault->wallet->currency_code) {
             throw new \Exception('Wallet currency must match vault currency');
         }
-        
+
         if ($wallet->balance < $amountInSmallestUnit) {
             throw new \Exception('Insufficient balance in wallet');
         }
-        
+
         DB::beginTransaction();
-        
+
         try {
             $wallet->decreaseBalance($amountInSmallestUnit);
             $vault->increment('balance', $amountInSmallestUnit);
             $this->updateWithdrawableBalanceForDeposit($vault, $amountInSmallestUnit);
-            
+
             if ($vault->isLocked() && $vault->status !== Vault::STATUS_LOCKED) {
                 $vault->update(['status' => Vault::STATUS_LOCKED]);
             }
-            
+
             $this->recordTransaction($vault, VaultTransaction::TYPE_DEPOSIT, $amountInSmallestUnit);
-            
+
             DB::commit();
-            
+
             Log::info('Deposit completed', ['vault_id' => $vault->id, 'amount' => $amountInSmallestUnit]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -166,38 +165,97 @@ public function createVault(
     // WITHDRAWAL
     // ============================================================================
 
+    // public function withdraw(Vault $vault, int $amountInSmallestUnit): array
+    // {
+    //     $availableToWithdraw = $this->getAvailableWithdrawableBalance($vault);
+
+    //     if ($availableToWithdraw < $amountInSmallestUnit) {
+    //         throw new \Exception('Insufficient withdrawable balance');
+    //     }
+
+    //     DB::beginTransaction();
+
+    //     try {
+    //         $penaltyAmount = $this->calculateEarlyWithdrawalPenalty($vault, $amountInSmallestUnit);
+    //         $netWithdrawAmount = $amountInSmallestUnit - $penaltyAmount;
+
+    //         if ($netWithdrawAmount <= 0) {
+    //             throw new \Exception('Withdrawal amount too small after penalty');
+    //         }
+
+    //         $vault->decrement('balance', $amountInSmallestUnit);
+    //         $vault->wallet->increaseBalance($netWithdrawAmount);
+    //         $this->updateWithdrawableBalanceForWithdrawal($vault, $amountInSmallestUnit);
+
+    //         $this->recordTransaction($vault, VaultTransaction::TYPE_WITHDRAWAL, $amountInSmallestUnit);
+
+    //         if ($penaltyAmount > 0) {
+    //             $this->recordTransaction($vault, VaultTransaction::TYPE_PENALTY, $penaltyAmount);
+    //         }
+
+    //         $this->updateVaultStatusAfterWithdrawal($vault);
+
+    //         DB::commit();
+
+    //         return [
+    //             'withdrawn' => $netWithdrawAmount,
+    //             'penalty' => $penaltyAmount,
+    //             'total_deducted' => $amountInSmallestUnit,
+    //             'currency' => $vault->wallet->currency->code,
+    //             'currency_symbol' => $vault->wallet->currency->symbol,
+    //         ];
+
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         throw $e;
+    //     }
+    // }
+
     public function withdraw(Vault $vault, int $amountInSmallestUnit): array
     {
         $availableToWithdraw = $this->getAvailableWithdrawableBalance($vault);
-        
+
         if ($availableToWithdraw < $amountInSmallestUnit) {
             throw new \Exception('Insufficient withdrawable balance');
         }
-        
+
         DB::beginTransaction();
-        
+
         try {
             $penaltyAmount = $this->calculateEarlyWithdrawalPenalty($vault, $amountInSmallestUnit);
             $netWithdrawAmount = $amountInSmallestUnit - $penaltyAmount;
-            
+
             if ($netWithdrawAmount <= 0) {
                 throw new \Exception('Withdrawal amount too small after penalty');
             }
-            
+
             $vault->decrement('balance', $amountInSmallestUnit);
+
+            // Funds go to the vault's linked wallet (same currency)
             $vault->wallet->increaseBalance($netWithdrawAmount);
+
             $this->updateWithdrawableBalanceForWithdrawal($vault, $amountInSmallestUnit);
-            
+
             $this->recordTransaction($vault, VaultTransaction::TYPE_WITHDRAWAL, $amountInSmallestUnit);
-            
+
             if ($penaltyAmount > 0) {
                 $this->recordTransaction($vault, VaultTransaction::TYPE_PENALTY, $penaltyAmount);
             }
-            
+
             $this->updateVaultStatusAfterWithdrawal($vault);
-            
+
             DB::commit();
-            
+
+            Log::info('Withdrawal completed', [
+                'vault_id' => $vault->id,
+                'user_id' => $vault->user_id,
+                'amount_requested' => $amountInSmallestUnit,
+                'amount_received' => $netWithdrawAmount,
+                'penalty_applied' => $penaltyAmount,
+                'destination_wallet_id' => $vault->wallet->id,
+                'destination_currency' => $vault->wallet->currency->code,
+            ]);
+
             return [
                 'withdrawn' => $netWithdrawAmount,
                 'penalty' => $penaltyAmount,
@@ -205,7 +263,6 @@ public function createVault(
                 'currency' => $vault->wallet->currency->code,
                 'currency_symbol' => $vault->wallet->currency->symbol,
             ];
-            
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -241,7 +298,7 @@ public function createVault(
     private function updateVaultStatusAfterWithdrawal(Vault $vault): void
     {
         $totalValue = $vault->balance + $vault->interest_earned;
-        
+
         if ($totalValue === 0) {
             $vault->update(['status' => Vault::STATUS_CLOSED]);
         } elseif ($vault->isMatured() && $vault->status !== Vault::STATUS_MATURED) {
@@ -257,31 +314,30 @@ public function createVault(
     {
         if ($vault->type === 'flexible' || $vault->balance === 0) return;
         if (in_array($vault->status, [Vault::STATUS_MATURED, Vault::STATUS_CLOSED])) return;
-        
+
         $cacheKey = self::INTEREST_CACHE_KEY . $vault->id . '_' . now()->format('Y-m-d');
         if (Cache::has($cacheKey)) return;
-        
+
         $balanceFloat = MoneyHelper::fromSmallestUnit($vault->balance, $vault->currency_code);
         $dailyRate = pow(1 + ($vault->interest_rate / 100), 1 / 365) - 1;
         $interestFloat = $balanceFloat * $dailyRate;
         $interest = MoneyHelper::toSmallestUnit($interestFloat, $vault->currency_code);
-        
+
         if ($interest > 0) {
             DB::beginTransaction();
-            
+
             try {
                 $vault->increment('balance', $interest);
                 $vault->increment('interest_earned', $interest);
-                
+
                 if ($vault->isLocked()) {
                     $vault->increment('withdrawable_balance', $interest);
                 }
-                
+
                 $this->recordTransaction($vault, VaultTransaction::TYPE_INTEREST, $interest);
                 Cache::put($cacheKey, true, self::DAILY_INTEREST_LIMIT);
-                
+
                 DB::commit();
-                
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error('Interest calculation failed', ['vault_id' => $vault->id]);
@@ -299,31 +355,30 @@ public function createVault(
             ->where('status', Vault::STATUS_LOCKED)
             ->where('matures_at', '<=', now())
             ->get();
-        
+
         $processed = 0;
-        
+
         foreach ($maturedVaults as $vault) {
             DB::beginTransaction();
-            
+
             try {
                 $this->calculateInterest($vault);
-                
+
                 $vault->update([
                     'status' => Vault::STATUS_MATURED,
                     'withdrawable_balance' => $vault->balance,
                 ]);
-                
+
                 $this->recordTransaction($vault, VaultTransaction::TYPE_MATURITY, 0);
-                
+
                 DB::commit();
                 $processed++;
-                
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error('Maturity processing failed', ['vault_id' => $vault->id]);
             }
         }
-        
+
         return $processed;
     }
 
@@ -347,7 +402,7 @@ public function createVault(
     private function getTransactionDescription(string $type, int $amount, string $currencyCode): string
     {
         $formattedAmount = MoneyHelper::format($amount, $currencyCode);
-        
+
         return match ($type) {
             VaultTransaction::TYPE_DEPOSIT => "Deposit to vault: {$formattedAmount}",
             VaultTransaction::TYPE_WITHDRAWAL => "Withdrawal from vault: {$formattedAmount}",
@@ -371,25 +426,25 @@ public function createVault(
             ->where('status', '!=', Vault::STATUS_CLOSED)
             ->orderBy('created_at', 'desc')
             ->get();
-        
+
         $totalLockedValue = 0;
         $totalFlexibleValue = 0;
         $totalInterestEarned = 0;
         $totalValue = 0;
-        
+
         foreach ($vaults as $vault) {
             $value = $vault->balance + $vault->interest_earned;
-            
+
             if ($vault->isLocked()) {
                 $totalLockedValue += $value;
             } else {
                 $totalFlexibleValue += $value;
             }
-            
+
             $totalInterestEarned += $vault->interest_earned;
             $totalValue += $value;
         }
-        
+
         return [
             'vaults' => $vaults,
             'stats' => [

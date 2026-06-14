@@ -25,6 +25,15 @@
                         <span class="text-gray-600">{{ t('Early withdrawal penalty') }}</span>
                         <span class="font-semibold text-amber-600">{{ vault.type_config?.penalty || 0 }}%</span>
                     </div>
+                    <!-- Destination wallet info -->
+                    <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-500">{{ t('Will be sent to') }}</span>
+                            <span class="font-medium text-gray-700 dark:text-gray-300">
+                                {{ vaultCurrencyCode }} {{ t('Wallet') }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <form @submit.prevent="goToConfirmation" class="space-y-5">
@@ -84,6 +93,10 @@
                             <span class="text-gray-900">{{ t('You will receive') }}</span>
                             <span class="text-emerald-600">{{ estimatedAmountFormatted }}</span>
                         </div>
+                        <div class="mt-2 flex justify-between text-xs text-gray-500">
+                            <span>{{ t('To your') }}</span>
+                            <span>{{ vaultCurrencyCode }} {{ t('wallet') }}</span>
+                        </div>
                     </div>
 
                     <!-- Error message -->
@@ -137,9 +150,15 @@
                         <span class="text-gray-600">{{ t('Penalty') }} ({{ vault.type_config?.penalty || 0 }}%)</span>
                         <span class="font-medium text-red-600">-{{ penaltyAmountFormatted }}</span>
                     </div>
-                    <div class="flex justify-between">
+                    <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
                         <span class="text-gray-600">{{ t('You will receive') }}</span>
                         <span class="font-bold text-emerald-600">{{ estimatedAmountFormatted }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">{{ t('Sent to wallet') }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">
+                            {{ vaultCurrencyCode }} {{ t('Wallet') }}
+                        </span>
                     </div>
                 </div>
 
@@ -222,6 +241,11 @@ const vaultCurrencySymbol = computed(() => {
     return props.vault.currency_symbol || '$';
 });
 
+// Get vault currency code
+const vaultCurrencyCode = computed(() => {
+    return props.vault.currency_code || 'USD';
+});
+
 // Parse amount as number (in dollars)
 const amountNumber = computed(() => {
     const parsed = parseFloat(amount.value);
@@ -265,14 +289,11 @@ const estimatedAmountFormatted = computed(() => {
     return `${vaultCurrencySymbol.value} ${estimated.toFixed(2)}`;
 });
 
-// Maximum withdraw amount - FIXED to properly extract from formatted_balance
+// Maximum withdraw amount - extract from formatted_balance
 const maxWithdrawFloat = computed(() => {
-    // Try to get from formatted_balance first
     if (props.vault.formatted_balance) {
-        // Extract number from formatted balance (e.g., "$35.00" -> 35, "€ 50,00" -> 50)
         const match = props.vault.formatted_balance.match(/(\d+(?:[.,]\d+)?)/);
         if (match) {
-            // Convert comma to dot if needed (e.g., "50,00" -> "50.00")
             const numStr = match[1].replace(',', '.');
             const num = parseFloat(numStr);
             if (!isNaN(num)) {
@@ -286,7 +307,6 @@ const maxWithdrawFloat = computed(() => {
         return props.vault.balance / 100;
     }
     
-    // Ultimate fallback
     return 0;
 });
 
@@ -307,7 +327,6 @@ const validateAmount = () => {
         return;
     }
     
-    // Allow only numbers and decimal point
     const regex = /^\d*\.?\d{0,2}$/;
     if (!regex.test(value)) {
         amountError.value = t('Please enter a valid amount');
@@ -360,7 +379,6 @@ watch(() => props.isOpen, (open) => {
 
 // ==================== SUBMIT ====================
 const submit = async () => {
-    // Validate amount
     if (amountNumber.value <= 0) {
         amountError.value = t('Please enter an amount');
         return;
@@ -381,6 +399,10 @@ const submit = async () => {
     errorMessage.value = null;
     
     try {
+        // The backend will automatically:
+        // 1. Calculate penalty if early withdrawal
+        // 2. Transfer the net amount to user's wallet that matches vault currency
+        // 3. Update vault balance
         await router.post(`/vaults/${props.vault.id}/withdraw`, {
             amount: amountNumber.value,
         }, {

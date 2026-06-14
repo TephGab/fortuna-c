@@ -114,7 +114,7 @@ class Vault extends Model
 
     public function transactions()
     {
-        return $this->hasMany(VaultTransaction::class);
+        return $this->hasMany(VaultTransaction::class)->orderBy('created_at', 'desc');
     }
 
     // ============================================================================
