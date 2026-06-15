@@ -198,6 +198,8 @@ const onVaultCreated = () => {
 
 const goToDepositOptions = () => router.visit('/deposits');
 
+const goToMoneyRequests = () => router.visit('/money-requests');
+
 // ==================== SCROLL HELPERS ====================
 const scroll = (direction: 'left' | 'right') => {
   if (scrollContainer.value) {
@@ -310,7 +312,7 @@ onUnmounted(() => {
                     <Plus class="h-6 w-6 text-gray-700 dark:text-gray-300" />
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Add money') }}</span>
                 </button>
-                <button class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
+                <button @click="goToMoneyRequests" class="flex flex-col items-center gap-2 rounded-xl border border-sidebar-border/70 bg-white py-3 transition-all hover:shadow-md dark:border-sidebar-border dark:bg-gray-900">
                     <CreditCard class="h-6 w-6 text-gray-700 dark:text-gray-300" />
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('Request') }}</span>
                 </button>

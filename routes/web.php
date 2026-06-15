@@ -3,9 +3,10 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\MoneyRequestController;
 use App\Http\Controllers\TransferController;
-use App\Http\Controllers\WalletController;
 use App\Http\Controllers\VaultController; // ADD THIS
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -86,6 +87,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Add new currency wallet
     Route::post('/wallets/add-currency', [WalletController::class, 'addCurrency'])->name('wallets.add-currency');
     Route::get('/wallets/available-currencies', [WalletController::class, 'availableCurrencies'])->name('wallets.available-currencies');
+    
+    // ============================================================================
+    // MONEY REQUEST ROUTES
+    // ============================================================================
+
+    Route::prefix('money-requests')->group(function () {
+        Route::get('/', [MoneyRequestController::class, 'index'])->name('money-request.index');
+        Route::post('/create', [MoneyRequestController::class, 'createRequest'])->name('money-request.create');
+        Route::get('/pay/{token}', [MoneyRequestController::class, 'showPayPage'])->name('money-request.pay');
+        Route::post('/pay/{token}', [MoneyRequestController::class, 'processPayment'])->name('money-request.process');
+        Route::get('/qr-code/{token}', [MoneyRequestController::class, 'generateRequestQRCode'])->name('money-request.qr-code');
+    });
+    
 });
 
 // ============================================================================
