@@ -1,5 +1,6 @@
 <?php
 
+use App\Helpers\MoneyHelper;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\LocaleController;
@@ -93,12 +94,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ============================================================================
 
     Route::prefix('money-requests')->group(function () {
-        Route::get('/', [MoneyRequestController::class, 'index'])->name('money-request.index');
-        Route::post('/create', [MoneyRequestController::class, 'createRequest'])->name('money-request.create');
-        Route::get('/pay/{token}', [MoneyRequestController::class, 'showPayPage'])->name('money-request.pay');
-        Route::post('/pay/{token}', [MoneyRequestController::class, 'processPayment'])->name('money-request.process');
-        Route::get('/qr-code/{token}', [MoneyRequestController::class, 'generateRequestQRCode'])->name('money-request.qr-code');
+        Route::get('/', [MoneyRequestController::class, 'index'])->name('money-requests.index');
+        Route::post('/create', [MoneyRequestController::class, 'createRequest'])->name('money-requests.create');
+        Route::get('/pay/{token}', [MoneyRequestController::class, 'showPayPage'])->name('money-requests.pay');
+        Route::post('/pay/{token}', [MoneyRequestController::class, 'processPayment'])->name('money-requests.process');
+        Route::get('/qr-code/{token}', [MoneyRequestController::class, 'generateRequestQRCode'])->name('money-requests.qr-code');
     });
+
+    // Route::prefix('money-requests')->group(function () {
+    //     Route::get('/', [MoneyRequestController::class, 'index'])->name('money-requests.index');
+    //     Route::post('/create', [MoneyRequestController::class, 'createRequest'])->name('money-request.create');
+    //     Route::get('/pay/{token}', [MoneyRequestController::class, 'showPayPage'])->name('money-request.pay');
+    //     Route::post('/pay/{token}', [MoneyRequestController::class, 'processPayment'])->name('money-request.process');
+    //     Route::get('/qr-code/{token}', [MoneyRequestController::class, 'generateRequestQRCode'])->name('money-request.qr-code');
+    // });
     
 });
 
@@ -117,6 +126,22 @@ Route::middleware(['auth'])->prefix('api')->group(function () {
     Route::prefix('vaults')->group(function () {
         // Add any additional API endpoints here if needed
     });
+});
+
+Route::middleware(['auth'])->get('/api/user/wallets', function () {
+    $user = auth()->user();
+    $wallets = $user->wallets()->with('currency')->get()->map(function ($wallet) {
+        return [
+            'id' => $wallet->id,
+            'currency_code' => $wallet->currency->code,
+            'currency_symbol' => $wallet->currency->symbol,
+            'formatted_balance' => MoneyHelper::format($wallet->balance, $wallet->currency->code),
+            'balance_float' => MoneyHelper::fromSmallestUnit($wallet->balance, $wallet->currency->code),
+            'is_default' => $wallet->is_default,
+        ];
+    });
+    
+    return response()->json(['wallets' => $wallets]);
 });
 
 // ============================================================================

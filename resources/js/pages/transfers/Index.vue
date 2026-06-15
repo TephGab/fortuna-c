@@ -2,6 +2,12 @@
 /**
  * Send Money Component - Mobile First Design
  * Matches dashboard color scheme - No green, neutral grays only
+ * 
+ * Supports:
+ * - Manual email entry
+ * - Recent recipients
+ * - QR code scanning (opens scanner modal)
+ * - URL parameters for pre-fill (recipient_email, amount, description)
  */
 
 import { Head, router } from '@inertiajs/vue3';
@@ -23,9 +29,13 @@ import {
     Info,
     DollarSign,
     X,
-    TrendingUp
+    TrendingUp,
+    QrCode,
+    Scan,
+    Upload
 } from 'lucide-vue-next';
 import { useTranslation } from '@/composables/useTranslation';
+import QrScannerModal from '@/components/QrScannerModal.vue';
 
 const { t } = useTranslation();
 
@@ -61,6 +71,7 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const quoteId = ref<string | null>(null);
 const showRecent = ref(true);
+const showScanner = ref(false);
 
 // Form data
 const recipientEmail = ref('');
@@ -69,6 +80,7 @@ const selectedSourceWallet = ref<any>(null);
 const selectedTargetWallet = ref<any>(null);
 const amount = ref<number | null>(null);
 const transferDetails = ref<any>(null);
+const prefilledDescription = ref<string | null>(null);
 
 // Touch/swipe for mobile
 const touchStartX = ref<number | null>(null);
@@ -111,6 +123,44 @@ const recipientInitials = computed(() => {
 const progressPercent = computed(() => {
     return (step.value / 3) * 100;
 });
+
+// ==================== URL PARAMETER PRE-FILL ====================
+/**
+ * Parse URL parameters to pre-fill the form when scanning a QR code
+ * Supports parameters: recipient_email, amount, description
+ */
+const parseUrlParameters = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const prefillEmail = urlParams.get('recipient_email');
+    const prefillAmount = urlParams.get('amount');
+    const prefillDescription = urlParams.get('description');
+    
+    // Auto-fill recipient email if provided
+    if (prefillEmail && prefillEmail !== 'null' && prefillEmail !== '') {
+        console.log('Pre-filling recipient email:', prefillEmail);
+        recipientEmail.value = prefillEmail;
+        
+        // Auto-find recipient after a short delay
+        setTimeout(() => {
+            findRecipient();
+        }, 500);
+    }
+    
+    // Auto-fill amount if provided
+    if (prefillAmount && prefillAmount !== 'null' && prefillAmount !== '') {
+        const parsedAmount = parseFloat(prefillAmount);
+        if (!isNaN(parsedAmount) && parsedAmount > 0) {
+            console.log('Pre-filling amount:', parsedAmount);
+            amount.value = parsedAmount;
+        }
+    }
+    
+    // Store description if provided (for reference)
+    if (prefillDescription && prefillDescription !== 'null' && prefillDescription !== '') {
+        prefilledDescription.value = prefillDescription;
+        console.log('Description from QR:', prefillDescription);
+    }
+};
 
 // ==================== METHODS ====================
 
@@ -291,6 +341,30 @@ const executeTransfer = async () => {
     }
 };
 
+// ==================== QR SCANNER HANDLERS ====================
+
+const openScanner = () => {
+    showScanner.value = true;
+};
+
+const handleQrDecoded = (data: { type: string; email: string; amount?: number; description?: string }) => {
+    if (data.type === 'user' && data.email) {
+        recipientEmail.value = data.email;
+        
+        if (data.amount) {
+            amount.value = data.amount;
+        }
+        
+        if (data.description) {
+            prefilledDescription.value = data.description;
+        }
+        
+        findRecipient();
+    }
+};
+
+// ==================== LIFECYCLE ====================
+
 onUnmounted(() => {
     const container = document.querySelector('.send-money-container');
     if (container) {
@@ -310,6 +384,9 @@ onMounted(() => {
     if (defaultWallet) {
         selectedSourceWallet.value = defaultWallet;
     }
+    
+    // Parse URL parameters for QR code pre-fill
+    parseUrlParameters();
     
     const container = document.querySelector('.send-money-container');
     if (container) {
@@ -334,10 +411,15 @@ onMounted(() => {
                     <ArrowLeft class="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </button>
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('Send Money') }}</h1>
-                <div class="w-10"></div>
+                <button 
+                    @click="openScanner"
+                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
+                >
+                    <Scan class="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                </button>
             </div>
             
-            <!-- Progress Bar - Perfect size (3px) -->
+            <!-- Progress Bar -->
             <div class="px-4 pb-3">
                 <div class="h-[3px] w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
                     <div 
@@ -355,20 +437,18 @@ onMounted(() => {
             <div v-show="step === 1" class="animate-fadeIn">
                 <div class="mb-6">
                     <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('Who are you sending to?') }}</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Enter their email address') }}</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('Enter their email address or scan QR code') }}</p>
                 </div>
                 
-                <div class="mb-6">
-                    <div class="relative">
-                        <Mail class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input 
-                            v-model="recipientEmail"
-                            type="email"
-                            class="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-lg focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-gray-500/20"
-                            :placeholder="t('friend@example.com')"
-                            @keyup.enter="findRecipient"
-                        />
-                    </div>
+                <div class="relative mb-6">
+                    <Mail class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                    <input 
+                        v-model="recipientEmail"
+                        type="email"
+                        class="h-14 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-lg focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-gray-500/20"
+                        :placeholder="t('friend@example.com')"
+                        @keyup.enter="findRecipient"
+                    />
                 </div>
                 
                 <button 
@@ -589,6 +669,13 @@ onMounted(() => {
             </div>
         </div>
     </div>
+
+    <!-- QR Scanner Modal Component -->
+    <QrScannerModal 
+        :is-open="showScanner"
+        @close="showScanner = false"
+        @decoded="handleQrDecoded"
+    />
 </template>
 
 <style scoped>

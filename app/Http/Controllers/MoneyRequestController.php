@@ -9,50 +9,28 @@ use App\Models\MoneyRequest;
 use App\Helpers\MoneyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\PngWriter;
-use Endroid\QrCode\ErrorCorrectionLevel;
-use Endroid\QrCode\Logo\Logo;
-use Endroid\QrCode\Color\Color;
-use Endroid\QrCode\Label\Label;
-use Endroid\QrCode\Label\Font\OpenSans;
 
 class MoneyRequestController extends Controller
 {
     /**
-     * Show the request money page with QR code containing app logo
-     *
-     * @return \Inertia\Response
+     * Show the request money page with QR code containing user's email
      */
     public function index()
     {
         $user = auth()->user();
         
-        // Get user's default wallet for currency
         $defaultWallet = $user->wallets()->where('is_default', true)->with('currency')->first();
         $currency = $defaultWallet?->currency;
         
-        // Generate unique request ID for this session
-        $requestId = Str::random(32);
+        // SIMPLE EMAIL - Just the email address
+        $qrData = $user->email;
         
-        // Generate QR code data (user ID + request ID)
-        $qrData = json_encode([
-            'user_id' => $user->id,
-            'request_id' => $requestId,
-            'user_name' => $user->name,
-            'user_email' => $user->email,
-            'timestamp' => now()->timestamp,
-            'type' => 'money_request',
-        ]);
-        
-        // Generate QR code with app logo in the center
-        $qrCode = $this->generateQRCodeWithLogo($qrData);
+        // Generate QR code using free API (no package needed!)
+        $qrCode = $this->generateQRCode($qrData);
         
         return Inertia::render('moneyRequest/Index', [
             'qrCode' => $qrCode,
-            'requestId' => $requestId,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -69,137 +47,33 @@ class MoneyRequestController extends Controller
     }
     
     /**
-     * Generate a professional QR code with app logo in the center
-     *
-     * @param string $data The data to encode in the QR code
-     * @return string Base64 encoded PNG image
+     * Generate QR code using free QR code API (no package needed!)
+     * This works instantly without any composer dependencies
+     */
+    private function generateQRCode($data)
+    {
+        // Encode the data for URL
+        $encodedData = urlencode($data);
+        
+        // Use free QR code API (QR Server)
+        // Returns a PNG image directly
+        $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={$encodedData}";
+        
+        // Return the URL - Vue will load the image
+        return $qrCodeUrl;
+    }
+    
+    /**
+     * Alternative: Generate QR code with logo (using API with logo support)
      */
     private function generateQRCodeWithLogo($data)
     {
-        try {
-            // Create QR code with all options in constructor
-            $qrCode = new QrCode(
-                data: $data,
-                errorCorrectionLevel: ErrorCorrectionLevel::High,
-                size: 400,
-                margin: 10,
-            );
-            
-            // Create writer
-            $writer = new PngWriter();
-            
-            // Path to your app logo
-            $logoPath = Storage::disk('public')->path('logos/app-logo.png');
-            
-            // Create result
-            $result = $writer->write($qrCode);
-            
-            // Add logo if it exists
-            if (file_exists($logoPath)) {
-                $logo = Logo::create($logoPath)
-                    ->setResizeToWidth(80);
-                
-                // Re-write with logo
-                $result = $writer->write($qrCode, $logo);
-            }
-            
-            // Return as base64 for inline display
-            return 'data:image/png;base64,' . base64_encode($result->getString());
-            
-        } catch (\Exception $e) {
-            \Log::error('QR Code generation failed: ' . $e->getMessage());
-            return $this->generateSimpleQRCode($data);
-        }
+        // For now, use simple QR code
+        return $this->generateQRCode($data);
     }
     
     /**
-     * Generate a simple QR code without logo (fallback)
-     *
-     * @param string $data
-     * @return string
-     */
-    private function generateSimpleQRCode($data)
-    {
-        try {
-            $qrCode = new QrCode(
-                data: $data,
-                size: 400,
-                margin: 10,
-            );
-            
-            $writer = new PngWriter();
-            $result = $writer->write($qrCode);
-            
-            return 'data:image/png;base64,' . base64_encode($result->getString());
-        } catch (\Exception $e) {
-            // Ultimate fallback - return a placeholder
-            return 'data:image/svg+xml,' . urlencode('<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="400" fill="#333"/><text x="200" y="200" text-anchor="middle" fill="#fff">QR Code</text></svg>');
-        }
-    }
-    
-    /**
-     * Generate a downloadable QR code for a specific money request
-     *
-     * @param string $token
-     * @return \Illuminate\Http\Response
-     */
-    public function generateRequestQRCode($token)
-    {
-        $moneyRequest = MoneyRequest::where('request_token', $token)
-            ->with('user')
-            ->firstOrFail();
-        
-        $qrData = json_encode([
-            'type' => 'money_request',
-            'request_token' => $token,
-            'amount' => $moneyRequest->amount,
-            'currency' => $moneyRequest->currency_code,
-            'description' => $moneyRequest->description,
-            'requester_name' => $moneyRequest->user->name,
-        ]);
-        
-        try {
-            $qrCode = new QrCode(
-                data: $qrData,
-                size: 400,
-                margin: 10,
-                errorCorrectionLevel: ErrorCorrectionLevel::High,
-            );
-            
-            $writer = new PngWriter();
-            
-            // Add logo if exists
-            $logoPath = Storage::disk('public')->path('logos/app-logo.png');
-            if (file_exists($logoPath)) {
-                $logo = Logo::create($logoPath)->setResizeToWidth(80);
-                $result = $writer->write($qrCode, $logo);
-            } else {
-                $result = $writer->write($qrCode);
-            }
-            
-            return response($result->getString())
-                ->header('Content-Type', 'image/png')
-                ->header('Content-Disposition', 'attachment; filename="money-request-qr.png"');
-                
-        } catch (\Exception $e) {
-            \Log::error('QR Code generation failed: ' . $e->getMessage());
-            
-            // Fallback to simple QR without logo
-            $qrCode = new QrCode(data: $qrData, size: 400);
-            $writer = new PngWriter();
-            $result = $writer->write($qrCode);
-            
-            return response($result->getString())
-                ->header('Content-Type', 'image/png')
-                ->header('Content-Disposition', 'attachment; filename="money-request-qr.png"');
-        }
-    }
-    
-    /**
-     * Create a money request link
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Create a money request (for specific amount requests)
      */
     public function createRequest(Request $request)
     {
@@ -223,19 +97,20 @@ class MoneyRequestController extends Controller
             'request_token' => Str::random(64),
         ]);
         
+        // Create QR code with email
+        $qrData = $user->email;
+        $qrCode = $this->generateQRCode($qrData);
+        
         return response()->json([
             'success' => true,
             'request_url' => route('money-request.pay', $moneyRequest->request_token),
             'request_token' => $moneyRequest->request_token,
-            'qr_code_url' => route('money-request.qr-code', $moneyRequest->request_token),
+            'qr_code' => $qrCode,
         ]);
     }
     
     /**
      * Show payment page for a money request
-     *
-     * @param string $token
-     * @return \Inertia\Response
      */
     public function showPayPage($token)
     {
@@ -268,10 +143,6 @@ class MoneyRequestController extends Controller
     
     /**
      * Process payment for a money request
-     *
-     * @param Request $request
-     * @param string $token
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function processPayment(Request $request, $token)
     {
@@ -282,7 +153,6 @@ class MoneyRequestController extends Controller
         
         $user = auth()->user();
         
-        // Prevent paying your own request
         if ($user->id === $moneyRequest->user_id) {
             return back()->with('error', 'You cannot pay your own money request.');
         }
@@ -294,19 +164,16 @@ class MoneyRequestController extends Controller
         
         $amountInSmallestUnit = MoneyHelper::toSmallestUnit($validated['amount'], $moneyRequest->currency_code);
         
-        // Validate amount matches the request
         if ($amountInSmallestUnit != $moneyRequest->amount) {
             return back()->with('error', 'Amount does not match the requested amount.');
         }
         
         $sourceWallet = $user->wallets()->findOrFail($validated['wallet_id']);
         
-        // Validate currency matches
         if ($sourceWallet->currency_code !== $moneyRequest->currency_code) {
             return back()->with('error', 'Wallet currency must match the request currency.');
         }
         
-        // Check if user has sufficient balance
         if ($sourceWallet->balance < $amountInSmallestUnit) {
             return back()->with('error', 'Insufficient balance.');
         }
@@ -314,21 +181,16 @@ class MoneyRequestController extends Controller
         DB::beginTransaction();
         
         try {
-            // Deduct from payer's wallet
             $sourceWallet->decreaseBalance($amountInSmallestUnit);
-            
-            // Add to requester's wallet
             $requesterWallet = $moneyRequest->wallet;
             $requesterWallet->increaseBalance($amountInSmallestUnit);
             
-            // Update money request status
             $moneyRequest->update([
                 'status' => 'completed',
                 'paid_at' => now(),
                 'paid_by_user_id' => $user->id,
             ]);
             
-            // Create transaction record for payer
             \App\Models\Transaction::create([
                 'user_id' => $user->id,
                 'source_wallet_id' => $sourceWallet->id,
@@ -340,12 +202,9 @@ class MoneyRequestController extends Controller
                 'completed_at' => now(),
                 'metadata' => [
                     'request_id' => $moneyRequest->id,
-                    'request_description' => $moneyRequest->description,
-                    'requester_name' => $moneyRequest->user->name,
                 ],
             ]);
             
-            // Create transaction record for requester
             \App\Models\Transaction::create([
                 'user_id' => $moneyRequest->user_id,
                 'source_wallet_id' => $sourceWallet->id,
@@ -357,8 +216,6 @@ class MoneyRequestController extends Controller
                 'completed_at' => now(),
                 'metadata' => [
                     'request_id' => $moneyRequest->id,
-                    'request_description' => $moneyRequest->description,
-                    'payer_name' => $user->name,
                 ],
             ]);
             
@@ -373,11 +230,25 @@ class MoneyRequestController extends Controller
     }
     
     /**
-     * Get currency symbol from currency code
-     *
-     * @param string $code
-     * @return string
+     * Generate a downloadable QR code for a specific money request
      */
+    public function generateRequestQRCode($token)
+    {
+        $moneyRequest = MoneyRequest::where('request_token', $token)->firstOrFail();
+        $qrData = $moneyRequest->user->email;
+        $encodedData = urlencode($qrData);
+        
+        // Redirect to QR code API for download
+        $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={$encodedData}";
+        
+        // Fetch the image and return as download
+        $imageContent = file_get_contents($qrCodeUrl);
+        
+        return response($imageContent)
+            ->header('Content-Type', 'image/png')
+            ->header('Content-Disposition', 'attachment; filename="payment-qr.png"');
+    }
+    
     private function getCurrencySymbol($code)
     {
         $symbols = [
@@ -386,11 +257,6 @@ class MoneyRequestController extends Controller
             'GBP' => '£',
             'JPY' => '¥',
             'BRL' => 'R$',
-            'CAD' => 'C$',
-            'AUD' => 'A$',
-            'CHF' => 'CHF',
-            'CNY' => '¥',
-            'INR' => '₹',
         ];
         return $symbols[$code] ?? '$';
     }
