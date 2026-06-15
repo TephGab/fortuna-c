@@ -1,16 +1,4 @@
 <!-- resources/js/Components/QrScannerModal.vue -->
-<!-- 
-  QR Code Scanner Modal Component
-  Features:
-  - Real-time camera scanning
-  - Image upload scanning
-  - Parses email and amount from QR codes
-  - Redirects to Send Money page with pre-filled data
-  
-  Supported QR Code Formats:
-  1. Plain email: user@example.com
-  2. JSON: {"email":"user@example.com","amount":50,"currency":"USD"}
--->
 
 <template>
     <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
@@ -27,32 +15,73 @@
             <div v-if="hasCamera" class="mb-4">
                 <!-- Start Camera Button -->
                 <button
+                    v-if="!showCamera"
                     @click="startCamera"
-                    class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 py-3 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                    class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-white transition hover:bg-blue-700"
                 >
                     <Camera class="h-5 w-5" />
-                    <span>{{ t('Use Camera') }}</span>
+                    <span>{{ t('Start Camera') }}</span>
                 </button>
                 
                 <!-- Camera Preview with Scanning Overlay -->
                 <div v-if="showCamera" class="relative overflow-hidden rounded-xl">
-                    <video ref="videoRef" class="h-64 w-full object-cover" autoplay playsinline></video>
-                    <!-- Scanning Area Overlay -->
-                    <div class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl border-2 border-blue-500">
-                        <div class="h-48 w-48 rounded-lg border-2 border-blue-500"></div>
+                    <!-- Camera Feed -->
+                    <video ref="videoRef" class="h-96 w-full object-cover" autoplay playsinline muted></video>
+                    
+                    <!-- Scanning Overlay -->
+                    <div class="absolute inset-0">
+                        <div class="absolute inset-0 bg-black/50"></div>
+                        
+                        <!-- Scan Window -->
+                        <div class="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2">
+                            <div class="absolute inset-0 bg-transparent"></div>
+                            
+                            <!-- Corner borders -->
+                            <div class="absolute left-0 top-0 h-8 w-8 border-l-4 border-t-4 border-emerald-500"></div>
+                            <div class="absolute right-0 top-0 h-8 w-8 border-r-4 border-t-4 border-emerald-500"></div>
+                            <div class="absolute bottom-0 left-0 h-8 w-8 border-b-4 border-l-4 border-emerald-500"></div>
+                            <div class="absolute bottom-0 right-0 h-8 w-8 border-b-4 border-r-4 border-emerald-500"></div>
+                            
+                            <!-- Scanning line animation -->
+                            <div class="absolute left-0 right-0 top-1/2 h-0.5 bg-emerald-500 shadow-lg animate-scan"></div>
+                        </div>
                     </div>
-                    <!-- Capture Button -->
-                    <button
-                        @click="captureFromCamera"
-                        class="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-600 p-3 text-white shadow-lg"
-                    >
-                        <Camera class="h-6 w-6" />
-                    </button>
+                    
+                    <!-- Top Bar with Controls -->
+                    <div class="absolute left-0 right-0 top-3 flex items-center justify-between px-3">
+                        <button
+                            @click="switchCamera"
+                            class="rounded-full bg-black/50 p-2 text-white backdrop-blur-sm transition hover:bg-black/70"
+                            :disabled="isSwitchingCamera"
+                            title="Switch Camera"
+                        >
+                            <RefreshCw class="h-5 w-5" />
+                        </button>
+                        
+                        <div class="rounded-full bg-black/50 px-3 py-1 text-xs text-white backdrop-blur-sm">
+                            {{ currentCameraMode === 'environment' ? '📷 Back' : '🤳 Front' }}
+                        </div>
+                        
+                        <button
+                            @click="stopCamera"
+                            class="rounded-full bg-red-600/80 p-2 text-white backdrop-blur-sm transition hover:bg-red-700"
+                            title="Stop Camera"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
+                    </div>
+                    
+                    <!-- Status Text -->
+                    <div class="absolute bottom-3 left-0 right-0 text-center">
+                        <p class="text-sm text-white drop-shadow-lg">
+                            {{ scanningStatus }}
+                        </p>
+                    </div>
                 </div>
             </div>
             
-            <!-- Divider (shown when camera is active) -->
-            <div v-if="hasCamera && showCamera" class="relative my-4 text-center">
+            <!-- Divider -->
+            <div v-if="hasCamera && !showCamera" class="relative my-4 text-center">
                 <div class="absolute inset-0 flex items-center">
                     <div class="w-full border-t border-gray-300 dark:border-gray-700"></div>
                 </div>
@@ -80,7 +109,6 @@
                 </label>
             </div>
             
-            <!-- Help Text -->
             <p class="mt-4 text-center text-xs text-gray-500">
                 {{ t('Make sure the QR code is clear and well-lit') }}
             </p>
@@ -90,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { X, Camera, Upload, QrCode } from 'lucide-vue-next';
+import { X, Camera, Upload, QrCode, RefreshCw } from 'lucide-vue-next';
 import { useTranslation } from '@/composables/useTranslation';
 import { router } from '@inertiajs/vue3';
 import jsQR from 'jsqr';
@@ -111,20 +139,22 @@ const emit = defineEmits(['close', 'decoded']);
 // STATE VARIABLES
 // ============================================================================
 
-const videoRef = ref<HTMLVideoElement | null>(null);      // Video element reference
-const fileInput = ref<HTMLInputElement | null>(null);     // File input reference
-const showCamera = ref(false);                            // Whether camera preview is shown
-const hasCamera = ref(false);                             // Whether device has camera
-let stream: MediaStream | null = null;                    // Camera stream
-let animationId: number | null = null;                    // Animation frame ID for continuous scanning
+const videoRef = ref<HTMLVideoElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const showCamera = ref(false);
+const hasCamera = ref(false);
+const isSwitchingCamera = ref(false);
+const currentCameraMode = ref<'environment' | 'user'>('environment');
+const scanningStatus = ref('Position QR code in frame');
+let stream: MediaStream | null = null;
+let animationId: number | null = null;
+let lastScanTime = 0;
+const SCAN_INTERVAL = 100; // Scan every 100ms
 
 // ============================================================================
 // MODAL CONTROLS
 // ============================================================================
 
-/**
- * Close the modal and clean up camera
- */
 const close = () => {
     stopCamera();
     emit('close');
@@ -135,24 +165,109 @@ const close = () => {
 // ============================================================================
 
 /**
- * Start the camera and begin scanning for QR codes
+ * Get camera constraints
+ */
+const getCameraConstraints = () => {
+    return {
+        video: {
+            facingMode: currentCameraMode.value,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        }
+    };
+};
+
+/**
+ * Start the camera with current mode
  */
 const startCamera = async () => {
     try {
-        // Request camera access with environment (back) camera
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment' } 
-        });
+        scanningStatus.value = 'Requesting camera access...';
+        
+        const constraints = getCameraConstraints();
+        console.log('Camera constraints:', constraints);
+        
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         
         if (videoRef.value) {
             videoRef.value.srcObject = stream;
             await videoRef.value.play();
             showCamera.value = true;
-            startScanning(); // Start continuous scanning
+            scanningStatus.value = 'Position QR code in the frame...';
+            startScanning();
         }
     } catch (err) {
         console.error('Camera error:', err);
-        alert(t('Unable to access camera'));
+        
+        // Fallback: Try simpler constraints
+        try {
+            scanningStatus.value = 'Trying default camera...';
+            const fallbackConstraints = { video: true };
+            stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+            
+            if (videoRef.value) {
+                videoRef.value.srcObject = stream;
+                await videoRef.value.play();
+                showCamera.value = true;
+                scanningStatus.value = 'Position QR code in the frame...';
+                startScanning();
+            }
+        } catch (fallbackErr) {
+            console.error('Fallback camera error:', fallbackErr);
+            scanningStatus.value = 'Unable to access camera';
+            alert(t('Unable to access camera. Please check permissions.'));
+        }
+    }
+};
+
+/**
+ * Switch between front and back camera
+ */
+const switchCamera = async () => {
+    if (isSwitchingCamera.value) return;
+    
+    isSwitchingCamera.value = true;
+    scanningStatus.value = 'Switching camera...';
+    
+    const newMode = currentCameraMode.value === 'environment' ? 'user' : 'environment';
+    
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    
+    if (videoRef.value) {
+        videoRef.value.srcObject = null;
+    }
+    
+    try {
+        const constraints = { video: { facingMode: newMode } };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (videoRef.value) {
+            videoRef.value.srcObject = stream;
+            await videoRef.value.play();
+            currentCameraMode.value = newMode;
+            scanningStatus.value = 'Position QR code in the frame...';
+        }
+    } catch (err) {
+        console.error('Switch camera error:', err);
+        scanningStatus.value = 'Failed to switch camera';
+        
+        try {
+            const defaultConstraints = { video: true };
+            stream = await navigator.mediaDevices.getUserMedia(defaultConstraints);
+            if (videoRef.value) {
+                videoRef.value.srcObject = stream;
+                await videoRef.value.play();
+                scanningStatus.value = 'Position QR code in the frame...';
+            }
+        } catch (recoverErr) {
+            scanningStatus.value = 'Camera unavailable';
+            showCamera.value = false;
+        }
+    } finally {
+        isSwitchingCamera.value = false;
     }
 };
 
@@ -160,19 +275,18 @@ const startCamera = async () => {
  * Stop the camera and clean up resources
  */
 const stopCamera = () => {
-    // Cancel animation frame
+    scanningStatus.value = 'Camera stopped';
+    
     if (animationId) {
         cancelAnimationFrame(animationId);
         animationId = null;
     }
     
-    // Stop all camera tracks
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
         stream = null;
     }
     
-    // Clear video source
     if (videoRef.value) {
         videoRef.value.srcObject = null;
     }
@@ -181,36 +295,43 @@ const stopCamera = () => {
 };
 
 /**
- * Continuously scan the camera feed for QR codes
- * Uses requestAnimationFrame for smooth scanning
+ * Enhanced QR code scanning - processes every frame for better detection
  */
 const startScanning = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
     const scan = () => {
-        if (!videoRef.value || !showCamera.value) return;
+        if (!videoRef.value || !showCamera.value || !videoRef.value.videoWidth || !videoRef.value.videoHeight) {
+            animationId = requestAnimationFrame(scan);
+            return;
+        }
         
-        const canvas = document.createElement('canvas');
         const video = videoRef.value;
         
-        // Wait for video to have enough data
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
+        // Set canvas size to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        if (ctx) {
+            // Draw current video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            if (ctx) {
-                // Draw current video frame to canvas
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
-                // Try to decode QR code from the image
-                const code = jsQR(imageData.data, canvas.width, canvas.height);
-                
-                if (code) {
-                    // QR code found! Process it
-                    processDecodedData(code.data);
-                    stopCamera();
-                    close();
-                }
+            // Get image data
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // Try to decode QR code
+            const code = jsQR(imageData.data, canvas.width, canvas.height, {
+                inversionAttempts: "attemptBoth", // Try both normal and inverted colors
+            });
+            
+            if (code) {
+                scanningStatus.value = 'QR Code detected! Redirecting...';
+                console.log('QR Code detected:', code.data);
+                processDecodedData(code.data);
+                stopCamera();
+                close();
+                return;
             }
         }
         
@@ -221,44 +342,10 @@ const startScanning = () => {
     scan();
 };
 
-/**
- * Capture a single frame from camera and decode QR code
- * Used as an alternative to continuous scanning
- */
-const captureFromCamera = () => {
-    if (!videoRef.value) return;
-    
-    const canvas = document.createElement('canvas');
-    const video = videoRef.value;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    
-    if (ctx) {
-        // Draw current frame
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Try to decode QR code
-        const code = jsQR(imageData.data, canvas.width, canvas.height);
-        
-        if (code) {
-            processDecodedData(code.data);
-            stopCamera();
-            close();
-        } else {
-            alert(t('No QR code found. Please try again.'));
-        }
-    }
-};
-
 // ============================================================================
 // IMAGE UPLOAD SCANNING
 // ============================================================================
 
-/**
- * Handle file upload - decode QR code from uploaded image
- */
 const handleFileUpload = async (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
@@ -267,8 +354,9 @@ const handleFileUpload = async (event: Event) => {
     const img = new Image();
     const imageUrl = URL.createObjectURL(file);
     
+    scanningStatus.value = 'Processing image...';
+    
     img.onload = () => {
-        // Create canvas to read image pixels
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
@@ -277,24 +365,25 @@ const handleFileUpload = async (event: Event) => {
         if (ctx) {
             ctx.drawImage(img, 0, 0, img.width, img.height);
             const imageData = ctx.getImageData(0, 0, img.width, img.height);
-            
-            // Try to decode QR code from the uploaded image
-            const code = jsQR(imageData.data, img.width, img.height);
+            const code = jsQR(imageData.data, img.width, img.height, {
+                inversionAttempts: "attemptBoth",
+            });
             
             if (code) {
-                console.log('QR Code decoded from image:', code.data);
+                scanningStatus.value = 'QR Code found! Redirecting...';
                 processDecodedData(code.data);
                 close();
             } else {
+                scanningStatus.value = 'No QR code found in image';
                 alert(t('No QR code found in the image. Please try another image.'));
             }
         }
         
-        // Clean up object URL
         URL.revokeObjectURL(imageUrl);
     };
     
     img.onerror = () => {
+        scanningStatus.value = 'Failed to load image';
         alert(t('Failed to load image. Please try another file.'));
         URL.revokeObjectURL(imageUrl);
     };
@@ -306,16 +395,6 @@ const handleFileUpload = async (event: Event) => {
 // QR CODE DATA PROCESSING
 // ============================================================================
 
-/**
- * Process decoded QR code data
- * 
- * Supported QR code formats:
- * 1. Plain email: user@example.com
- * 2. JSON: {"email":"user@example.com","amount":50,"currency":"USD"}
- * 
- * Extracts recipient email, amount, and description
- * Redirects to Send Money page with pre-filled data
- */
 const processDecodedData = (data: string) => {
     console.log('Decoded QR data:', data);
     
@@ -323,82 +402,32 @@ const processDecodedData = (data: string) => {
     let amount: number | null = null;
     let description = '';
     
-    // ========================================================================
-    // CASE 1: Try to parse as JSON (includes amount)
-    // ========================================================================
     try {
         const qrData = JSON.parse(data);
         
-        // Extract email from various possible field names
-        if (qrData.email) {
-            recipientEmail = qrData.email;
-        } else if (qrData.user_email) {
-            recipientEmail = qrData.user_email;
-        } else if (qrData.requester_email) {
-            recipientEmail = qrData.requester_email;
-        }
+        if (qrData.email) recipientEmail = qrData.email;
+        else if (qrData.user_email) recipientEmail = qrData.user_email;
+        else if (qrData.requester_email) recipientEmail = qrData.requester_email;
         
-        // Extract amount if present
-        if (qrData.amount && qrData.amount > 0) {
-            amount = qrData.amount;
-            console.log('Amount extracted from JSON:', amount);
-        }
-        
-        // Extract description if present
-        if (qrData.description) {
-            description = qrData.description;
-        }
+        if (qrData.amount && qrData.amount > 0) amount = qrData.amount;
+        if (qrData.description) description = qrData.description;
         
     } catch (err) {
-        // Not JSON, continue to next case
-        console.log('Not JSON format, trying plain text');
-    }
-    
-    // ========================================================================
-    // CASE 2: Plain text containing email
-    // ========================================================================
-    if (!recipientEmail) {
         const emailMatch = data.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-        if (emailMatch) {
-            recipientEmail = emailMatch[1];
-            console.log('Email extracted from text:', recipientEmail);
-        }
+        if (emailMatch) recipientEmail = emailMatch[1];
     }
     
-    // ========================================================================
-    // REDIRECT TO SEND MONEY PAGE WITH PRE-FILLED DATA
-    // ========================================================================
     if (recipientEmail) {
-        // Build query parameters for the Send Money page
         const params = new URLSearchParams();
         params.append('recipient_email', recipientEmail);
+        if (amount) params.append('amount', amount.toString());
+        if (description) params.append('description', description);
         
-        if (amount && amount > 0) {
-            params.append('amount', amount.toString());
-        }
-        
-        if (description) {
-            params.append('description', description);
-        }
-        
-        console.log('Redirecting to Send Money with params:', params.toString());
-        
-        // Emit decoded event for parent components
-        emit('decoded', { 
-            type: 'user', 
-            email: recipientEmail,
-            amount: amount,
-            description: description
-        });
-        
-        // Redirect to Send Money page with pre-filled data
+        emit('decoded', { type: 'user', email: recipientEmail, amount, description });
         router.visit(`/transfers?${params.toString()}`);
         return;
     }
     
-    // ========================================================================
-    // ERROR: No email found in QR code
-    // ========================================================================
     alert(t('Invalid QR code. Please scan a valid payment QR code containing an email address.'));
 };
 
@@ -406,23 +435,43 @@ const processDecodedData = (data: string) => {
 // LIFECYCLE HOOKS
 // ============================================================================
 
-/**
- * Check if device has a camera when component mounts
- */
 onMounted(() => {
     navigator.mediaDevices.enumerateDevices()
         .then(devices => {
             hasCamera.value = devices.some(device => device.kind === 'videoinput');
+            console.log('Camera detected:', hasCamera.value);
         })
         .catch(() => {
             hasCamera.value = false;
+            console.log('Could not enumerate devices');
         });
 });
 
-/**
- * Clean up camera when component unmounts
- */
 onUnmounted(() => {
     stopCamera();
 });
 </script>
+
+<style scoped>
+@keyframes scan {
+    0% {
+        top: 0%;
+    }
+    50% {
+        top: 100%;
+    }
+    100% {
+        top: 0%;
+    }
+}
+
+.animate-scan {
+    animation: scan 2s ease-in-out infinite;
+}
+
+button {
+    cursor: pointer;
+    min-width: 36px;
+    min-height: 36px;
+}
+</style>
