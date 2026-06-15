@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
  * Send Money Component - Mobile First Design
- * Matches dashboard color scheme - No green, neutral grays only
+ * Supports manual entry, recent recipients, and QR code scanning
  * 
- * Supports:
- * - Manual email entry
- * - Recent recipients
- * - QR code scanning (opens scanner modal)
- * - URL parameters for pre-fill (recipient_email, amount, description)
+ * Features:
+ * - Step-by-step flow (Recipient → Amount → Confirm)
+ * - QR code scanning with camera and image upload
+ * - URL parameter pre-fill for scanned QR codes
+ * - Multi-currency support
+ * - Fee calculation
  */
 
 import { Head, router } from '@inertiajs/vue3';
@@ -24,15 +25,9 @@ import {
     Wallet,
     Clock,
     Shield,
-    Smartphone,
     CircleDollarSign,
-    Info,
-    DollarSign,
     X,
-    TrendingUp,
-    QrCode,
-    Scan,
-    Upload
+    Scan
 } from 'lucide-vue-next';
 import { useTranslation } from '@/composables/useTranslation';
 import QrScannerModal from '@/components/QrScannerModal.vue';
@@ -70,8 +65,8 @@ const step = ref(1);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const quoteId = ref<string | null>(null);
-const showRecent = ref(true);
 const showScanner = ref(false);
+const showRecent = ref(true);
 
 // Form data
 const recipientEmail = ref('');
@@ -127,7 +122,7 @@ const progressPercent = computed(() => {
 // ==================== URL PARAMETER PRE-FILL ====================
 /**
  * Parse URL parameters to pre-fill the form when scanning a QR code
- * Supports parameters: recipient_email, amount, description
+ * Supports: recipient_email, amount, description
  */
 const parseUrlParameters = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -135,9 +130,11 @@ const parseUrlParameters = () => {
     const prefillAmount = urlParams.get('amount');
     const prefillDescription = urlParams.get('description');
     
+    console.log('URL Params - Email:', prefillEmail);
+    console.log('URL Params - Amount:', prefillAmount);
+    
     // Auto-fill recipient email if provided
     if (prefillEmail && prefillEmail !== 'null' && prefillEmail !== '') {
-        console.log('Pre-filling recipient email:', prefillEmail);
         recipientEmail.value = prefillEmail;
         
         // Auto-find recipient after a short delay
@@ -150,20 +147,18 @@ const parseUrlParameters = () => {
     if (prefillAmount && prefillAmount !== 'null' && prefillAmount !== '') {
         const parsedAmount = parseFloat(prefillAmount);
         if (!isNaN(parsedAmount) && parsedAmount > 0) {
-            console.log('Pre-filling amount:', parsedAmount);
             amount.value = parsedAmount;
+            console.log('Amount pre-filled:', parsedAmount);
         }
     }
     
-    // Store description if provided (for reference)
+    // Store description if provided
     if (prefillDescription && prefillDescription !== 'null' && prefillDescription !== '') {
         prefilledDescription.value = prefillDescription;
-        console.log('Description from QR:', prefillDescription);
     }
 };
 
 // ==================== METHODS ====================
-
 const goBack = () => {
     if (step.value > 1) {
         step.value--;
@@ -183,7 +178,7 @@ const handleTouchEnd = (e: TouchEvent) => {
     if (Math.abs(deltaX) > 50) {
         if (deltaX > 0 && step.value > 1) {
             step.value--;
-        } else if (deltaX < 0 && step.value < 3 && canProceed) {
+        } else if (deltaX < 0 && step.value < 3 && canProceed.value) {
             if (step.value === 1 && recipientData.value) {
                 step.value++;
             } else if (step.value === 2 && canProceed.value) {
@@ -342,7 +337,6 @@ const executeTransfer = async () => {
 };
 
 // ==================== QR SCANNER HANDLERS ====================
-
 const openScanner = () => {
     showScanner.value = true;
 };
@@ -351,8 +345,9 @@ const handleQrDecoded = (data: { type: string; email: string; amount?: number; d
     if (data.type === 'user' && data.email) {
         recipientEmail.value = data.email;
         
-        if (data.amount) {
+        if (data.amount && data.amount > 0) {
             amount.value = data.amount;
+            console.log('Amount from QR code:', data.amount);
         }
         
         if (data.description) {
@@ -363,22 +358,14 @@ const handleQrDecoded = (data: { type: string; email: string; amount?: number; d
     }
 };
 
-// ==================== LIFECYCLE ====================
-
-onUnmounted(() => {
-    const container = document.querySelector('.send-money-container');
-    if (container) {
-        container.removeEventListener('touchstart', handleTouchStart);
-        container.removeEventListener('touchend', handleTouchEnd);
-    }
-});
-
+// ==================== WATCHERS ====================
 watch([selectedSourceWallet, amount, selectedTargetWallet], () => {
     if (selectedSourceWallet.value && amount.value && amount.value >= 1 && selectedTargetWallet.value) {
         calculateTransfer();
     }
 });
 
+// ==================== LIFECYCLE ====================
 onMounted(() => {
     const defaultWallet = props.wallets.find(w => w.is_default);
     if (defaultWallet) {
@@ -392,6 +379,14 @@ onMounted(() => {
     if (container) {
         container.addEventListener('touchstart', handleTouchStart);
         container.addEventListener('touchend', handleTouchEnd);
+    }
+});
+
+onUnmounted(() => {
+    const container = document.querySelector('.send-money-container');
+    if (container) {
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchend', handleTouchEnd);
     }
 });
 </script>

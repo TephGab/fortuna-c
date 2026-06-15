@@ -99,6 +99,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pay/{token}', [MoneyRequestController::class, 'showPayPage'])->name('money-requests.pay');
         Route::post('/pay/{token}', [MoneyRequestController::class, 'processPayment'])->name('money-requests.process');
         Route::get('/qr-code/{token}', [MoneyRequestController::class, 'generateRequestQRCode'])->name('money-requests.qr-code');
+        Route::get('/generate-qr', [MoneyRequestController::class, 'generateQRCode'])->name('money-request.generate-qr');
+        Route::get('/download-qr', [MoneyRequestController::class, 'downloadQRCode'])->name('money-request.download-qr');
     });
 
     // Route::prefix('money-requests')->group(function () {
