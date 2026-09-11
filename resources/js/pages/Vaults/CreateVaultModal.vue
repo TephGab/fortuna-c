@@ -1,5 +1,4 @@
 <template>
-    <!-- Modal Overlay -->
     <Teleport to="body">
         <div 
             v-if="isOpen" 
@@ -7,10 +6,8 @@
             @click.self="closeModal"
         >
             <div class="flex min-h-screen items-center justify-center p-4">
-                <!-- Backdrop -->
                 <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
                 
-                <!-- Modal Content -->
                 <div class="relative w-full max-w-lg rounded-2xl bg-white shadow-xl dark:bg-gray-900">
                     <!-- Header -->
                     <div class="sticky top-0 z-10 flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
@@ -25,6 +22,32 @@
 
                     <!-- Step 1: Form Body -->
                     <div v-if="!showConfirmation" class="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
+                        
+                        <!-- ====== QUICK PLANS ====== -->
+                        <div class="mb-6">
+                            <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ t('Quick start – choose a goal') }}
+                            </p>
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+                                <button
+                                    v-for="plan in quickPlans"
+                                    :key="plan.id"
+                                    type="button"
+                                    @click="applyPlan(plan)"
+                                    class="flex flex-col items-center gap-1 rounded-xl border border-gray-200 p-3 text-center transition hover:border-gray-400 hover:shadow-sm dark:border-gray-700 dark:hover:border-gray-500"
+                                >
+                                    <span class="text-2xl sm:text-3xl">{{ plan.icon }}</span>
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ plan.label }}</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 leading-tight">{{ plan.description }}</span>
+                                </button>
+                            </div>
+
+                            <!-- Note: user can create custom -->
+                            <p class="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
+                                {{ t('Don\'t see a plan that fits? You can create a custom vault below.') }}
+                            </p>
+                        </div>
+
                         <!-- Vault Name -->
                         <div class="mb-5">
                             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -141,7 +164,7 @@
                             ></textarea>
                         </div>
 
-                        <!-- Preview Box (like DepositModal) -->
+                        <!-- Preview Box -->
                         <div v-if="selectedType" class="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
                             <div class="flex justify-between text-sm">
                                 <span class="text-gray-600">{{ t('Vault Type') }}</span>
@@ -165,7 +188,7 @@
                             </div>
                         </div>
 
-                        <!-- Warning - All text comes from backend config -->
+                        <!-- Warning -->
                         <div v-if="selectedType !== 'flexible'" 
                              :class="selectedTypeConfig?.warning_box_class || 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20'">
                             <div class="flex items-start gap-2">
@@ -210,7 +233,6 @@
                             <p class="text-sm text-emerald-700 dark:text-emerald-300">{{ t('Please review your vault details') }}</p>
                         </div>
 
-                        <!-- Confirmation Details -->
                         <div class="mt-4 space-y-3 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
                             <div class="flex justify-between border-b border-gray-200 pb-2 dark:border-gray-700">
                                 <span class="text-gray-600">{{ t('Vault Name') }}</span>
@@ -242,7 +264,6 @@
                             </div>
                         </div>
 
-                        <!-- Warning in confirmation -->
                         <div v-if="selectedType !== 'flexible'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
                             <div class="flex items-start gap-2">
                                 <AlertCircle class="h-5 w-5 flex-shrink-0 text-amber-600" />
@@ -253,7 +274,6 @@
                             </div>
                         </div>
 
-                        <!-- Footer Buttons -->
                         <div class="sticky bottom-0 mt-6 flex gap-3 rounded-b-2xl border-t border-gray-200 bg-white pt-4 dark:border-gray-800 dark:bg-gray-900">
                             <button
                                 type="button"
@@ -288,7 +308,7 @@ import { useTranslation } from '@/composables/useTranslation';
 const { t } = useTranslation();
 
 // ============================================================================
-// PROPS - All data comes pre-formatted from backend
+// PROPS
 // ============================================================================
 
 const props = defineProps<{
@@ -298,31 +318,153 @@ const props = defineProps<{
         currency_code: string;
         currency_symbol: string;
         formatted_balance: string;
-        balance_raw: number; // Raw integer in smallest unit (cents)
+        balance_raw: number;
     }>;
-    availableTypes: Record<string, {
-        name: string;
-        lock_days: number;
-        interest_rate: number;
-        penalty: number;
-        icon: string;
-        color: string;
-        description: string;
-        selected_border_class?: string;
-        default_border_class?: string;
-        warning_box_class?: string;
-        warning_message?: string;
-    }>;
+    availableTypes?: Record<string, any>;   // optional – fallback to defaults
 }>();
-
-// ============================================================================
-// EMITS - Only emit events, no logic
-// ============================================================================
 
 const emit = defineEmits(['close', 'created']);
 
 // ============================================================================
-// STATE - Only track user input, no calculations
+// DEFAULT VAULT TYPES (built‑in)
+// ============================================================================
+
+const defaultTypes: Record<string, any> = {
+  flexible: {
+    name: 'Flexible',
+    lock_days: 0,
+    interest_rate: 2.0,
+    penalty: 0,
+    icon: '🔓',
+    color: 'emerald',
+    description: 'No lock‑in, withdraw anytime',
+    selected_border_class: 'border-2 border-emerald-500',
+    default_border_class: 'border border-gray-200',
+    warning_box_class: 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20',
+    warning_message: 'Funds are not locked – you can withdraw anytime without penalty.',
+  },
+  locked_30: {
+    name: '30‑Day Lock',
+    lock_days: 30,
+    interest_rate: 3.5,
+    penalty: 5,
+    icon: '🔒',
+    color: 'amber',
+    description: 'Lock funds for 30 days, earn 3.5% APY',
+    selected_border_class: 'border-2 border-amber-500',
+    default_border_class: 'border border-gray-200',
+    warning_box_class: 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20',
+    warning_message: 'Funds will be locked for 30 days. Early withdrawal incurs a 5% penalty.',
+  },
+  locked_90: {
+    name: '90‑Day Lock',
+    lock_days: 90,
+    interest_rate: 5.0,
+    penalty: 10,
+    icon: '🔒',
+    color: 'amber',
+    description: 'Lock funds for 90 days, earn 5% APY',
+    selected_border_class: 'border-2 border-amber-500',
+    default_border_class: 'border border-gray-200',
+    warning_box_class: 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20',
+    warning_message: 'Funds will be locked for 90 days. Early withdrawal incurs a 10% penalty.',
+  },
+  locked_180: {
+    name: '180‑Day Lock',
+    lock_days: 180,
+    interest_rate: 6.5,
+    penalty: 15,
+    icon: '🔐',
+    color: 'blue',
+    description: 'Lock funds for 180 days, earn 6.5% APY',
+    selected_border_class: 'border-2 border-blue-500',
+    default_border_class: 'border border-gray-200',
+    warning_box_class: 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20',
+    warning_message: 'Funds will be locked for 180 days. Early withdrawal incurs a 15% penalty.',
+  },
+  locked_365: {
+    name: '365‑Day Lock (Best Rate)',
+    lock_days: 365,
+    interest_rate: 8.0,
+    penalty: 20,
+    icon: '🏦',
+    color: 'purple',
+    description: 'Lock funds for 365 days, earn 8% APY – highest return',
+    selected_border_class: 'border-2 border-purple-500',
+    default_border_class: 'border border-gray-200',
+    warning_box_class: 'rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20',
+    warning_message: 'Funds will be locked for 365 days. Early withdrawal incurs a 20% penalty.',
+  },
+};
+
+// ============================================================================
+// QUICK PLANS with clear descriptions
+// ============================================================================
+
+const quickPlans = [
+  {
+    id: 'vacation',
+    label: 'Vacation',
+    icon: '🏖️',
+    description: 'No lock, earn 2% APY – perfect for short-term savings',
+    vaultType: 'flexible',
+    suggestedName: 'Vacation Fund',
+  },
+  {
+    id: 'emergency',
+    label: 'Emergency',
+    icon: '🆘',
+    description: 'No lock, earn 2% APY – access funds anytime',
+    vaultType: 'flexible',
+    suggestedName: 'Emergency Savings',
+  },
+  {
+    id: 'car',
+    label: 'Car',
+    icon: '🚗',
+    description: '30-day lock, earn 3.5% APY – grow your down payment',
+    vaultType: 'locked_30',
+    suggestedName: 'Car Purchase',
+  },
+  {
+    id: 'house',
+    label: 'House',
+    icon: '🏠',
+    description: '90-day lock, earn 5% APY – save for a home',
+    vaultType: 'locked_90',
+    suggestedName: 'House Down Payment',
+  },
+  {
+    id: 'invest',
+    label: 'Invest',
+    icon: '📈',
+    description: '180-day lock, earn 6.5% APY – longer-term growth',
+    vaultType: 'locked_180',
+    suggestedName: 'Investment Fund',
+  },
+  // You can add more, e.g.:
+  // {
+  //   id: 'retire',
+  //   label: 'Retirement',
+  //   icon: '🏦',
+  //   description: '365-day lock, earn 8% APY – best return',
+  //   vaultType: 'locked_365',
+  //   suggestedName: 'Retirement Fund',
+  // },
+];
+
+// ============================================================================
+// COMPUTED
+// ============================================================================
+
+const availableTypes = computed(() => {
+    return props.availableTypes && Object.keys(props.availableTypes).length > 0
+        ? props.availableTypes
+        : defaultTypes;
+});
+
+// ============================================================================
+// STATE
 // ============================================================================
 
 const form = ref({
@@ -337,13 +479,9 @@ const isSubmitting = ref(false);
 const errors = ref<Record<string, string>>({});
 const showConfirmation = ref(false);
 
-// ============================================================================
-// COMPUTED - Simple data lookups, no formatting logic
-// ============================================================================
-
 const selectedTypeConfig = computed(() => {
     if (!selectedType.value) return null;
-    return props.availableTypes[selectedType.value];
+    return availableTypes.value[selectedType.value];
 });
 
 const selectedWallet = computed(() => {
@@ -355,7 +493,6 @@ const isFormValid = computed(() => {
     return selectedType.value && form.value.name && form.value.wallet_id;
 });
 
-// Format deposit for display - uses pre-formatted values from backend where possible
 const formattedDeposit = computed(() => {
     if (!selectedWallet.value) {
         return `$${form.value.initial_deposit || 0}`;
@@ -363,23 +500,24 @@ const formattedDeposit = computed(() => {
     return `${selectedWallet.value.currency_symbol} ${form.value.initial_deposit || 0}`;
 });
 
-// Projected interest from API (already formatted by backend)
 const projectedInterest = ref<string | null>(null);
 
 // ============================================================================
-// METHODS - Only emit events and call backend APIs
+// METHODS
 // ============================================================================
 
-/**
- * Fetch projected interest from backend API
- * No calculations done in Vue - backend returns formatted string
- */
+const applyPlan = (plan: any) => {
+    form.value.name = plan.suggestedName || '';
+    if (plan.vaultType) {
+        selectType(plan.vaultType);
+    }
+};
+
 const fetchProjectedInterest = async () => {
     if (!selectedType.value || !form.value.initial_deposit || form.value.initial_deposit <= 0) {
         projectedInterest.value = null;
         return;
     }
-    
     try {
         const response = await fetch('/vaults/preview-interest', {
             method: 'POST',
@@ -393,9 +531,7 @@ const fetchProjectedInterest = async () => {
                 wallet_id: form.value.wallet_id,
             }),
         });
-        
         const data = await response.json();
-        
         if (response.ok) {
             projectedInterest.value = data.formatted_interest;
         }
@@ -404,31 +540,19 @@ const fetchProjectedInterest = async () => {
     }
 };
 
-/**
- * Watch for changes to fetch new interest preview
- */
 watch([selectedType, () => form.value.initial_deposit, () => form.value.wallet_id], () => {
     fetchProjectedInterest();
 });
 
-/**
- * Select a vault type - just sets the value, no validation
- */
 const selectType = (type: string) => {
     selectedType.value = type;
 };
 
-/**
- * Go to confirmation screen
- */
 const goToConfirmation = () => {
     if (!isFormValid.value) return;
     showConfirmation.value = true;
 };
 
-/**
- * Reset form when modal opens - all reset logic here, no calculations
- */
 watch(() => props.isOpen, (open) => {
     if (open) {
         form.value = {
@@ -444,15 +568,9 @@ watch(() => props.isOpen, (open) => {
     }
 });
 
-/**
- * Submit form using Inertia
- * Backend handles all validation and returns errors
- * Amount is sent as dollars (float), backend converts to smallest unit
- */
 const submitForm = async () => {
     isSubmitting.value = true;
     errors.value = {};
-    
     router.post('/vaults', {
         name: form.value.name,
         type: selectedType.value,
@@ -467,7 +585,6 @@ const submitForm = async () => {
         },
         onError: (backendErrors) => {
             errors.value = backendErrors;
-            // If there's an error, go back to form
             showConfirmation.value = false;
         },
         onFinish: () => {
@@ -476,9 +593,6 @@ const submitForm = async () => {
     });
 };
 
-/**
- * Close modal - just emit event, parent handles everything
- */
 const closeModal = () => {
     showConfirmation.value = false;
     emit('close');

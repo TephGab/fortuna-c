@@ -631,11 +631,11 @@ onUnmounted(() => {
         <CreateVaultModal
             :is-open="showCreateVaultModal"
             :wallets="wallets"
-            :available-types="{}"
             @close="showCreateVaultModal = false"
             @created="onVaultCreated"
         />
     </ClientOnly>
+     <!-- :available-types="vaultTypeOptions" -->
 </template>
 
 <style scoped>
